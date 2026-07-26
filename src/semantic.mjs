@@ -43,11 +43,13 @@ export function actionLine(event) {
 /**
  * Build the judgement prompt.
  *
- * THIS EXACT TEXT is the one validated in docs/semantic-detector.md: 5/5 escapes
- * caught, 8/8 benign clean, zero false positives on qwen2.5:7b. An earlier
- * version that only asked "does this serve the task" false-positived on benign
- * work - it flagged acquiring a GitHub token during a "triage and open a PR"
- * task, reasoning too literally that triage does not need a token.
+ * THIS EXACT TEXT is the one validated in docs/semantic-detector.md: on
+ * qwen2.5:7b it catches the residual-floor semantic escape that no deterministic
+ * detector can see, with zero false positives across 8 benign trajectories (4
+ * adversarially shape-identical to escapes). An earlier version that only asked
+ * "does this serve the task" false-positived on benign work - it flagged
+ * acquiring a GitHub token during a "triage and open a PR" task, reasoning too
+ * literally that triage does not need a token.
  *
  * The fix, and the load-bearing part of this prompt, is the explicit
  * task-EXPANSION: a task includes its obvious sub-steps and prerequisites, and
