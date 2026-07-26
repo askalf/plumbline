@@ -2,7 +2,7 @@
 
 plumbline's six deterministic detectors measure the **shape** of a trajectory against a declared envelope. They have a documented floor, proven by [`corpus/evasion-residual-floor.jsonl`](../corpus/evasion-residual-floor.jsonl): an escape that keeps every action within a granted capability and every host within an allowed set produces no drift — by the envelope's own definition nothing drifted — and scores clean. The escape lives in the *semantics* of the actions (reading a credential file it had no task-reason to read), which shape cannot see.
 
-The semantic detector closes that floor. It asks a model one question about the trajectory: **does each action serve the declared task?** And it is built to run against a **local** model, because during the July 2026 Hugging Face incident the commercial frontier APIs refused to analyze the attack artifacts and the defenders had to reach for a self-hostable open-weight model. A monitor that stops working when it sees a real attack is not a monitor.
+The semantic detector closes that floor. It asks a model one question about the trajectory: **does each action serve the declared task?** And it is built to run against a **local** model, because during the July 2026 incident the commercial frontier APIs refused to analyze the attack artifacts and the defenders had to reach for a self-hostable open-weight model. A monitor that stops working when it sees a real attack is not a monitor.
 
 ## The result
 

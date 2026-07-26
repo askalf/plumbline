@@ -3,7 +3,7 @@
  *
  * Fingerprinting has a shape: many distinct endpoints against one host, a high
  * proportion of errors, and almost no state change — followed by one narrow
- * success. The ExploitGym models identified Sonatype Nexus 3 exactly this way,
+ * success. An escape fingerprints a package proxy exactly this way,
  * from response headers, error formats and caching behaviour.
  *
  * Capped low on purpose. Probing is weak evidence on its own; its value is
