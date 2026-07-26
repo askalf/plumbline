@@ -261,7 +261,7 @@
           <a class="btn btn-primary" href="#gap">See how &rarr;</a>
           <a class="btn btn-ghost" href="https://github.com/askalf/plumbline">GitHub</a>
         </div>
-        <div class="install"><b>git clone github.com/askalf/plumbline</b> &nbsp;&middot;&nbsp; zero dependencies &nbsp;&middot;&nbsp; MIT</div>
+        <div class="install"><b>npm i -g @askalf/plumbline</b> &nbsp;&middot;&nbsp; zero dependencies &nbsp;&middot;&nbsp; MIT</div>
       </div>
       <div class="drift-stage">
         <canvas id="driftCv" width="720" height="720" aria-label="A plumb line with drift building as deviation from true vertical, halting before the breach"></canvas>
@@ -409,15 +409,12 @@
       <div class="sec-eyebrow">an open schema, more than a tool</div>
       <h2 class="sec-title">Adopt it even if you never run the code</h2>
       <p class="sec-intro">There is no portable trajectory format for agent security. Every harness invents its own log shape, so detection logic can't move between them. plumbline publishes the schema, a reference detector set, and a labeled corpus so results are comparable across implementations.</p>
-      <pre><span class="c"># clone and run &mdash; no build step, no dependencies</span>
-git clone https://github.com/askalf/plumbline
-cd plumbline
-
-<span class="c"># catch the escape shape can't see</span>
-node src/cli.mjs replay corpus/evasion-residual-floor.jsonl --semantic
+      <pre><span class="c"># catch the escape shape can't see</span>
+npm i -g @askalf/plumbline
+plumbline replay corpus/evasion-residual-floor.jsonl --semantic
 
 <span class="c"># audit your own agent sessions</span>
-node src/cli.mjs scan ~/.claude/projects --profile=dev-workstation</pre>
+plumbline scan ~/.claude/projects --profile=dev-workstation</pre>
       <div class="hero-cta" style="margin-top:1.8rem">
         <a class="btn btn-primary" href="https://github.com/askalf/plumbline">Read the code &rarr;</a>
         <a class="btn btn-ghost" href="https://github.com/askalf/plumbline/blob/main/SPEC.md">The schema</a>
