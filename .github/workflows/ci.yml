@@ -1,0 +1,76 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['20', '22', '24']
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Assert zero runtime dependencies
+        run: |
+          deps=$(node -e "const p=require('./package.json');console.log(Object.keys(p.dependencies||{}).length)")
+          if [ "$deps" != "0" ]; then
+            echo "plumbline must stay dependency-free, found $deps"
+            exit 1
+          fi
+
+      - run: node --test test/*.test.mjs
+
+      - name: Acceptance - the escape must halt
+        run: |
+          node src/cli.mjs replay corpus/exploitgym.jsonl --exit-code --quiet && {
+            echo "exploitgym corpus did not reach confirm/halt"
+            exit 1
+          }
+          echo "exploitgym halts as expected"
+
+      - name: Acceptance - the benign trajectory must stay clean
+        run: node src/cli.mjs replay corpus/benign-repo-triage.jsonl --exit-code --quiet
+
+      - name: Acceptance - every shipped profile is valid
+        run: |
+          node --input-type=module -e "
+            import { listProfiles, loadProfile } from './src/scan.mjs';
+            const names = listProfiles();
+            if (names.length === 0) throw new Error('no profiles found');
+            for (const name of names) {
+              const p = loadProfile(name);
+              if (!p.name) throw new Error('profile missing name: ' + name);
+              if (!Array.isArray(p.capabilities)) throw new Error('profile missing capabilities: ' + name);
+              if (!p.budget) throw new Error('profile missing budget: ' + name);
+            }
+            console.log('valid profiles: ' + names.join(', '));
+          "
+
+      - name: Acceptance - packaged tarball is complete
+        run: |
+          npm pack --silent
+          tar -tzf askalf-plumbline-*.tgz | tee /tmp/files.txt
+          for required in \
+            package/profiles/dev-workstation.json \
+            package/corpus/exploitgym.jsonl \
+            package/schema/trajectory.schema.json \
+            package/src/cli.mjs; do
+            grep -qx "$required" /tmp/files.txt || {
+              echo "missing from tarball: $required"
+              exit 1
+            }
+          done
+          echo "tarball complete"
