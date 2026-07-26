@@ -1,0 +1,65 @@
+name: deploy
+
+# Ships site/ to the Cloudflare Pages project `plumbline` and wires the
+# custom domain. Same pattern as the rest of the fleet: wrangler + repo
+# secrets CLOUDFLARE_API_TOKEN (Pages:Edit + Zone:DNS:Edit + Zone:Read on
+# sprayberrylabs.com) and CLOUDFLARE_ACCOUNT_ID.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Ensure the Pages project exists
+        run: npx --yes wrangler@3 pages project create plumbline --production-branch=main || true
+
+      - name: Deploy site/ to Cloudflare Pages
+        run: npx --yes wrangler@3 pages deploy site --project-name=plumbline --branch=main --commit-dirty=true
+
+      # Idempotent, fail-soft: the deploy above already served the site at
+      # plumbline.pages.dev; a domain hiccup should not fail the run.
+      - name: Wire custom domain plumbline.sprayberrylabs.com
+        continue-on-error: true
+        env:
+          ZONE: sprayberrylabs.com
+          HOST: plumbline.sprayberrylabs.com
+        run: |
+          api="https://api.cloudflare.com/client/v4"
+          auth=(-H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "Content-Type: application/json")
+
+          echo "Attaching custom domain to the Pages project..."
+          curl -s -X POST "$api/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/plumbline/domains" \
+            "${auth[@]}" --data "{\"name\":\"$HOST\"}" | jq -r '"attach success=\(.success)", ((.errors // [])[]?.message)'
+
+          zid=$(curl -s "$api/zones?name=$ZONE" "${auth[@]}" | jq -r '.result[0].id')
+          echo "zone $ZONE -> ${zid:-NOT FOUND}"
+
+          rid=$(curl -s "$api/zones/$zid/dns_records?type=CNAME&name=$HOST" "${auth[@]}" | jq -r '.result[0].id // empty')
+          body="{\"type\":\"CNAME\",\"name\":\"$HOST\",\"content\":\"plumbline.pages.dev\",\"proxied\":true}"
+          if [ -n "$rid" ]; then
+            echo "updating existing CNAME $rid"
+            curl -s -X PATCH "$api/zones/$zid/dns_records/$rid" "${auth[@]}" --data "$body" | jq -r '"dns success=\(.success)"'
+          else
+            echo "creating CNAME"
+            curl -s -X POST "$api/zones/$zid/dns_records" "${auth[@]}" --data "$body" | jq -r '"dns success=\(.success)"'
+          fi
+          echo "Custom domain step complete."
