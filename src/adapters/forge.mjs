@@ -15,6 +15,7 @@
 
 import { createReadStream } from 'node:fs';
 import { createInterface } from 'node:readline';
+import { createHash } from 'node:crypto';
 import { entropyOf } from '../schema.mjs';
 import { opOf } from './claude-code.mjs';
 
@@ -95,14 +96,21 @@ function mailHost(input) {
   return at === -1 ? null : to.slice(at + 1).trim().toLowerCase() || null;
 }
 
-function secretFragments(text, seq) {
+/**
+ * Fragment identity is a truncated hash of the value, so the same secret seen
+ * in two tool calls resolves to one fragment and a `consumes` edge can be drawn.
+ * Positional ids made `reassembly` structurally unreachable — see the same note
+ * in the Claude Code adapter. One-way and truncated: identifies without carrying.
+ */
+function fragmentId(secret) {
+  return `f-${createHash('sha256').update(secret).digest('hex').slice(0, 16)}`;
+}
+
+function secretsIn(text) {
   SECRET_RE.lastIndex = 0;
   const out = [];
   let m;
-  let i = 0;
-  while ((m = SECRET_RE.exec(text)) !== null) {
-    out.push({ id: `fg-${seq}-${i++}`, len: m[0].length, entropy: entropyOf(m[0]) });
-  }
+  while ((m = SECRET_RE.exec(text)) !== null) out.push(m[0]);
   return out;
 }
 
@@ -215,6 +223,8 @@ export function executionToTrajectory(row, profile) {
   });
 
   const held = new Set();
+  const knownFragments = new Set();
+  let subagents = 0;
 
   for (const call of row.tool_calls ?? []) {
     const tool = call?.name ?? 'unknown';
@@ -238,9 +248,32 @@ export function executionToTrajectory(row, profile) {
     };
     if (fresh.length > 0) event.capability_grant = fresh;
 
-    const scannable = JSON.stringify(input);
-    const frags = secretFragments(scannable, event.seq);
-    if (frags.length > 0) event.produces = frags;
+    // Delegation is this harness's ephemeral compute. Without an instance
+    // identity `fanout` cannot fire at all, so a swarm of subagents would be
+    // invisible — the exact blind spot that made the ExploitGym campaign hard
+    // to reconstruct.
+    if (tool === 'agent_call') {
+      subagents += 1;
+      event.instance = `sub-${subagents}`;
+    }
+
+    // Secret movement: first sighting produces, later sightings consume.
+    const secrets = secretsIn(JSON.stringify(input));
+    if (secrets.length > 0) {
+      const produces = [];
+      const consumes = [];
+      for (const secret of secrets) {
+        const id = fragmentId(secret);
+        if (knownFragments.has(id)) {
+          if (!consumes.includes(id)) consumes.push(id);
+        } else {
+          knownFragments.add(id);
+          produces.push({ id, len: secret.length, entropy: entropyOf(secret) });
+        }
+      }
+      if (produces.length > 0) event.produces = produces;
+      if (consumes.length > 0) event.consumes = consumes;
+    }
 
     events.push(event);
   }

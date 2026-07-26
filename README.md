@@ -100,18 +100,44 @@ Scoring: within one action take the strongest signal (never compound); across ac
 
 ## Validated against real traffic
 
-A detector set that has only seen its own synthetic corpus is worthless. plumbline was validated against **1,579 real agent sessions / 57,388 tool calls** across two machines and two independent harnesses:
+A detector set that has only seen its own synthetic corpus is worthless. plumbline was validated against **1,586 real agent sessions / 57,602 tool calls** across two machines and two independent harnesses.
+
+> ⚠️ **Read the coverage table below before quoting the clean rate.** No session in any corpus could feed all six detectors, and `ratchet` is structurally dead on the forge adapter. The number is real; it is not a claim that six detectors looked and found nothing.
+>
+> The Claude Code corpus is **live** — it grows as work happens, so counts drift upward between runs (703 → 710 within one afternoon). Quote totals with the date measured.
 
 | Corpus | Environment | Sessions | Tool calls | Clean | Flagged | False halts |
 |---|---|---|---|---|---|---|
-| Claude Code (`dev-workstation`) | workstation A | 703 | 49,778 | 98.7% | 9 | **0** |
+| Claude Code (`dev-workstation`) | workstation A | 710 | 49,992 | 98.7% | 9 | **0** |
 | Claude Code (`dev-workstation`) | workstation B | 48 | 752 | 100% | 0 | **0** |
 | Forge SDK engine (`fleet-agent`) | self-hosted server | 828 | 6,858 | 100% | 0 | **0** |
-| **Combined** | **3 environments** | **1,579** | **57,388** | **99.4%** | **9 (0.57%)** | **0** |
+| **Combined** | **3 environments, 2 harnesses** | **1,586** | **57,602** | **99.4%** | **9 (0.57%)** | **0** |
 | `corpus/exploitgym.jsonl` | synthetic | 1 | 32 | — | halts at seq 21 | — |
 | `corpus/benign-repo-triage.jsonl` | synthetic | 1 | 11 | clean | — | — |
 
 The forge corpus matters more than the second workstation: it is a **different harness** with a disjoint tool vocabulary — `shell_exec`, `db_query`, `mail_send`, `container_ctl`, `ticket_update` — running server-side on the hosted SDK-engine harness. Same detectors, same scoring, no engine changes. That is the portability claim in [SPEC.md](SPEC.md) actually tested rather than asserted.
+
+### What that clean rate does and does not cover
+
+**A clean rate is not a safety claim unless every detector could have fired.** plumbline computes this and reports it, because the alternative — a headline percentage with silently dead detectors behind it — is exactly the failure this project shipped and caught three times.
+
+Per-detector coverage, meaning the share of sessions that actually contained the conditions a detector needs:
+
+| Detector | Claude Code (710) | Forge (828) |
+|---|---|---|
+| `staircase` | 46% | 100% |
+| `recon` | 22% | 54% |
+| `egress` | 22% | 18% |
+| `ratchet` | 18% | **adapter blind spot** |
+| `fanout` | 5% | 3% |
+| `reassembly` | 1% | not exercised |
+
+Two different things are in that table, and conflating them would be dishonest:
+
+- **Low coverage is normal.** Most sessions contain no credential reuse, no denials and no subagents. `reassembly` at 1% is the detector correctly finding that credential reuse is rare — not a defect.
+- **An adapter blind spot is a defect.** `ratchet` is dead for *every* corpus read through the forge adapter, because forge execution records carry `tool_calls` without per-call outcomes, so a refused call is indistinguishable from a successful one. No amount of additional data fixes that. It is declared in `ADAPTER_CAPABILITIES` rather than left to be discovered from a suspiciously clean report.
+
+**Notably, `0` of `1,586` sessions could feed all six detectors.** Every clean verdict in this project is partial, and the tool now says so on every run.
 
 ### The control that proves the detectors are live
 
@@ -144,9 +170,16 @@ The first honest run flagged **34.7%** of real sessions. That was the most usefu
 
 34.7% → 11.0% → 1.28%, with the synthetic escape still halting throughout.
 
-**And the one that mattered most, caught by the control above:** `staircase` reads only `capability_grant`, and neither real adapter emitted it — so the primary detector was **completely inert on real traffic** and only ever fired on the hand-authored corpus. The clean numbers were real but they were measured with the most important detector switched off. Both adapters now map tool use to the capability it demonstrates, treating the first exercise in a session as the grant. The clean rates survived the fix; they just mean something now.
+**And the one that mattered most, caught by the control above:** `staircase` reads only `capability_grant`, and neither real adapter emitted it — so the primary detector was **completely inert on real traffic** and only ever fired on the hand-authored corpus. The clean numbers were real but they were measured with the most important detector switched off. Both adapters now map tool use to the capability it demonstrates, treating the first exercise in a session as the grant.
 
-The general lesson, which is why the control ships as a documented step: **a clean result and a dead detector look identical from the outside.** Always score a corpus against an envelope you expect to fail.
+That failure then repeated twice more, which is why it eventually got a structural fix rather than a third patch:
+
+6. **The liveness guard was itself circular.** The control written to catch (5) compared the fired set against `DETECTOR_IDS`, derived from the registry it was checking — unregister a detector and it vanished from both sides of the comparison. Found by mutation, not by reading it. The expected set is now a literal, deliberately not derived from the registry.
+7. **`reassembly` was starved too.** It needs `consumes`, and no adapter emitted it, because fragment ids were positional (`cc-<seq>-<n>`) — the same secret in two commands got two unrelated ids, so no link could ever be drawn. Fragment identity is now a truncated hash of the value, so a second sighting resolves to the first fragment. One-way and truncated, preserving the property that plumbline never holds a secret.
+
+**The structural fix is `src/reachability.mjs`.** Every detector declares the event fields it depends on; reachability is computed from the events actually present and travels with every verdict as `report.reachability`. A `trustworthy: false` means a clean result is unproven rather than safe. `plumbline scan` refuses to print a bare clean rate when a detector could not fire.
+
+The general lesson, and the reason both the control and reachability ship as permanent machinery: **a clean result and a dead detector are indistinguishable from the outside.** Score a corpus against an envelope you expect to fail, and never trust a percentage that does not come with its coverage.
 
 ## Honest limitations
 

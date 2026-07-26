@@ -13,6 +13,7 @@ import { normalizeEvent } from './schema.mjs';
 import { assess } from './index.mjs';
 import { readTranscript, declareFor } from './adapters/claude-code.mjs';
 import { readExecutions } from './adapters/forge.mjs';
+import { DEPENDENCIES, classifyDeadDetectors } from './reachability.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -92,6 +93,7 @@ export async function scanTranscript(path, profile, { thresholds } = {}) {
     drift: report.drift,
     crossings: report.crossings,
     earliest_actionable: report.earliest_actionable,
+    reachability: report.reachability,
     signals: report.signals.map((s) => ({
       detector: s.detector,
       seq: s.seq,
@@ -129,6 +131,7 @@ export async function scanForgeDump(file, profile, { limit = Infinity, threshold
         drift: report.drift,
         crossings: report.crossings,
         earliest_actionable: report.earliest_actionable,
+        reachability: report.reachability,
         signals: report.signals.map((s) => ({
           detector: s.detector,
           seq: s.seq,
@@ -167,10 +170,17 @@ export async function scanCorpus(target, profile, { limit = Infinity, thresholds
 }
 
 /** Aggregate a scan into the numbers that belong in a README. */
-export function summarize(scan) {
+export function summarize(scan, { adapter = 'claude-code' } = {}) {
   const byLevel = { observe: 0, warn: 0, confirm: 0, halt: 0 };
   const byDetector = {};
   let toolCalls = 0;
+
+  // Corpus-level reachability. A detector is only genuinely live over a corpus
+  // if at least one session could feed it — this is the number that decides
+  // whether an aggregate clean rate means anything at all.
+  const reachableIn = {};
+  const census = {};
+  let sessionsFullyReachable = 0;
 
   for (const r of scan.results) {
     byLevel[r.level] += 1;
@@ -178,10 +188,22 @@ export function summarize(scan) {
     for (const s of r.signals) {
       byDetector[s.detector] = (byDetector[s.detector] ?? 0) + 1;
     }
+    if (r.reachability) {
+      if (r.reachability.trustworthy) sessionsFullyReachable += 1;
+      for (const [id, info] of Object.entries(r.reachability.detectors)) {
+        if (info.status !== 'starved') reachableIn[id] = (reachableIn[id] ?? 0) + 1;
+      }
+      for (const [field, n] of Object.entries(r.reachability.census)) {
+        if (n > 0) census[field] = (census[field] ?? 0) + n;
+      }
+    }
   }
 
   const flagged = byLevel.warn + byLevel.confirm + byLevel.halt;
   const total = scan.results.length;
+
+  const deadOverCorpus = Object.keys(DEPENDENCIES).filter((id) => !reachableIn[id]);
+  const { blindSpots, absentFromCorpus } = classifyDeadDetectors(deadOverCorpus, adapter);
 
   return {
     profile: scan.profile,
@@ -194,6 +216,24 @@ export function summarize(scan) {
     flagged_ratio: total === 0 ? 0 : Number((flagged / total).toFixed(4)),
     clean_ratio: total === 0 ? 0 : Number((byLevel.observe / total).toFixed(4)),
     by_detector: byDetector,
+    reachability: {
+      /** Detectors no session in this corpus could feed. A clean rate does not cover these. */
+      dead_over_corpus: deadOverCorpus,
+      /** Dead because the ADAPTER cannot express the field. A permanent defect. */
+      blind_spots: blindSpots,
+      /** Dead because this corpus contains no such activity. Expected, not a defect. */
+      absent_from_corpus: absentFromCorpus,
+      adapter,
+      /** Per detector, how many sessions could have fed it. */
+      reachable_in_sessions: reachableIn,
+      sessions_fully_reachable: sessionsFullyReachable,
+      field_census: census,
+      /**
+       * The honest headline. A clean rate is only a safety claim when every
+       * detector was reachable somewhere in the corpus.
+       */
+      clean_rate_is_meaningful: blindSpots.length === 0,
+    },
     top: [...scan.results]
       .filter((r) => r.level !== 'observe')
       .sort((a, b) => b.drift - a.drift)

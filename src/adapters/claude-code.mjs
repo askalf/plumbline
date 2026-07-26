@@ -13,6 +13,7 @@
 
 import { createReadStream } from 'node:fs';
 import { createInterface } from 'node:readline';
+import { createHash } from 'node:crypto';
 import { entropyOf } from '../schema.mjs';
 
 /** Tool name -> plumbline action verb. */
@@ -116,20 +117,54 @@ function looksDenied(text) {
 }
 
 /**
+ * Bytes a shell command sends outward.
+ *
+ * Deliberately conservative: only inline request bodies and uploaded files
+ * count. A transcript does not record what actually crossed the wire, so
+ * guessing would turn ordinary chatter into apparent data movement — the same
+ * mistake that produced the original 34.7% false-positive rate. Returning 0
+ * leaves the egress write branch quiet rather than wrong.
+ */
+const BODY_FLAG_RE = /(?:--data(?:-raw|-binary|-urlencode)?|-d|--form|-F|--upload-file|-T)[= ]+(['"])([\s\S]*?)\1/g;
+
+function outboundBytes(command) {
+  const text = String(command);
+  if (!/\b(?:curl|wget|http|https|scp|rsync|aws|gh)\b/.test(text)) return 0;
+  BODY_FLAG_RE.lastIndex = 0;
+  let total = 0;
+  let m;
+  while ((m = BODY_FLAG_RE.exec(text)) !== null) total += m[2].length;
+  return total;
+}
+
+/**
  * Credential-shaped strings in a command. Emitted as `produces` measurements
  * only - the value never leaves this function, which is the point: plumbline
  * can reason about secret movement without ever holding a secret.
  */
 const SECRET_RE = /\b(?:gh[pousr]_[A-Za-z0-9]{16,}|sk-[A-Za-z0-9_-]{16,}|glpat-[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{12,}|eyJ[A-Za-z0-9_-]{20,})\b/g;
 
-function secretFragments(text, seq) {
+/**
+ * Fragment identity is a truncated hash of the value, NOT a positional counter.
+ *
+ * This is what makes `reassembly` reachable on real traffic. With positional
+ * ids (`cc-<seq>-<n>`) the same secret appearing in two commands got two
+ * unrelated ids, so no `consumes` edge could ever be drawn and the detector was
+ * structurally inert. Hashing means the second sighting resolves to the first
+ * fragment, and two distinct secrets converging on one egress becomes visible.
+ *
+ * The hash is one-way and truncated: it identifies without carrying the value,
+ * preserving the property that plumbline never holds a secret.
+ */
+function fragmentId(secret) {
+  return `f-${createHash('sha256').update(secret).digest('hex').slice(0, 16)}`;
+}
+
+function secretsIn(text) {
   SECRET_RE.lastIndex = 0;
   const out = [];
   let m;
-  let i = 0;
-  while ((m = SECRET_RE.exec(text)) !== null) {
-    out.push({ id: `cc-${seq}-${i++}`, len: m[0].length, entropy: entropyOf(m[0]) });
-  }
+  while ((m = SECRET_RE.exec(text)) !== null) out.push(m[0]);
   return out;
 }
 
@@ -195,6 +230,7 @@ export async function readTranscript(file, opts = {}) {
   const pending = new Map();
   const tools = {};
   const held = new Set();
+  const knownFragments = new Set();
   let task = null;
   let cwd = opts.cwd ?? null;
   let seq = 1;
@@ -293,8 +329,31 @@ export async function readTranscript(file, opts = {}) {
               });
             }
           }
-          const frags = secretFragments(command, event.seq);
-          if (frags.length > 0) event.produces = frags;
+          // Secret movement: first sighting of a value produces a fragment;
+          // any later sighting consumes it. Hash-derived ids are what link the
+          // two, and what makes reassembly reachable at all.
+          const secrets = secretsIn(command);
+          if (secrets.length > 0) {
+            const produces = [];
+            const consumes = [];
+            for (const secret of secrets) {
+              const id = fragmentId(secret);
+              if (knownFragments.has(id)) {
+                if (!consumes.includes(id)) consumes.push(id);
+              } else {
+                knownFragments.add(id);
+                produces.push({ id, len: secret.length, entropy: entropyOf(secret) });
+              }
+            }
+            if (produces.length > 0) event.produces = produces;
+            if (consumes.length > 0) event.consumes = consumes;
+          }
+
+          // Outbound payload size, so the egress write branch is reachable.
+          // Only counted for commands that plainly carry a body outward -
+          // anything else would make protocol chatter look like data movement.
+          const bytes = outboundBytes(command);
+          if (bytes > 0) event.bytes_out = bytes;
         }
 
         if (block.id) pending.set(block.id, event);

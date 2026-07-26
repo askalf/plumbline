@@ -14,6 +14,7 @@ import { parseTrajectory, normalizeEvent, entropyOf, TrajectoryError } from './s
 import { envelopeFrom, normalizeEnvelope, undeclaredEnvelope } from './envelope.mjs';
 import { runDetectors, DETECTORS, DETECTOR_IDS } from './detect/index.mjs';
 import { score, levelFor, earliestActionable, LEVELS, DEFAULT_THRESHOLDS } from './score.mjs';
+import { reachability, summarizeReachability, fieldCensus, DEPENDENCIES, FIELDS } from './reachability.mjs';
 
 /**
  * Assess a normalized event list.
@@ -25,6 +26,7 @@ export function assess(events, { envelope = null, only = null, thresholds = DEFA
   const env = envelope ? normalizeEnvelope(envelope) : envelopeFrom(events);
   const signals = runDetectors(events, env, { only });
   const scored = score(signals, { thresholds });
+  const reach = reachability(events, { detectorIds: only ?? DETECTOR_IDS });
 
   return {
     session: events.length > 0 ? events[0].session : null,
@@ -33,6 +35,13 @@ export function assess(events, { envelope = null, only = null, thresholds = DEFA
     span: events.length === 0 ? null : { first: events[0].seq, last: events[events.length - 1].seq },
     ...scored,
     earliest_actionable: earliestActionable(scored),
+    /**
+     * Reachability travels with every verdict, deliberately. A caller that
+     * reads `level` without reading `reachability.trustworthy` can mistake
+     * "nothing could be found" for "nothing was wrong" — which is exactly the
+     * bug this project shipped and then caught three times.
+     */
+    reachability: reach,
   };
 }
 
@@ -57,4 +66,9 @@ export {
   earliestActionable,
   LEVELS,
   DEFAULT_THRESHOLDS,
+  reachability,
+  summarizeReachability,
+  fieldCensus,
+  DEPENDENCIES,
+  FIELDS,
 };

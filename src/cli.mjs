@@ -8,7 +8,7 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { assessTrajectory, DETECTOR_IDS, TrajectoryError } from './index.mjs';
+import { assessTrajectory, DETECTOR_IDS, TrajectoryError, summarizeReachability } from './index.mjs';
 import { loadProfile, listProfiles, scanCorpus, scanForgeDump, summarize } from './scan.mjs';
 
 const USAGE = `plumbline - trajectory-level monitoring for autonomous agents
@@ -71,6 +71,32 @@ function printSummary(summary, scan) {
   out.push(`  flagged          ${summary.flagged} (${(summary.flagged_ratio * 100).toFixed(1)}%)`);
   out.push('');
 
+  const reach = summary.reachability;
+  if (reach) {
+    if (reach.blind_spots.length > 0) {
+      out.push('  *** ADAPTER BLIND SPOT - THE CLEAN RATE DOES NOT COVER THESE ***');
+      for (const b of reach.blind_spots) {
+        out.push(`      ${padRight(b.detector, 12)}dead for ANY corpus via the ${reach.adapter} adapter`);
+        out.push(`      ${' '.repeat(12)}${b.reason}`);
+      }
+    } else {
+      out.push('  reachability     no adapter blind spots');
+    }
+    if (reach.absent_from_corpus.length > 0) {
+      out.push(`  not exercised    ${reach.absent_from_corpus.join(', ')} - this corpus contains no such activity (expected, not a defect)`);
+    }
+    out.push(`  fully reachable  ${reach.sessions_fully_reachable}/${summary.sessions_assessed} sessions could feed all detectors`);
+    const perDetector = Object.entries(reach.reachable_in_sessions).sort((a, b) => b[1] - a[1]);
+    if (perDetector.length > 0) {
+      out.push('  detector coverage');
+      for (const [id, n] of perDetector) {
+        const pct = summary.sessions_assessed === 0 ? 0 : (n / summary.sessions_assessed) * 100;
+        out.push(`    ${padRight(id, 14)}${padRight(n, 7)}sessions (${pct.toFixed(0)}%)`);
+      }
+    }
+    out.push('');
+  }
+
   const detectors = Object.entries(summary.by_detector).sort((a, b) => b[1] - a[1]);
   if (detectors.length > 0) {
     out.push('  signals by detector');
@@ -128,8 +154,25 @@ function printReport(report, opts) {
     out.push('');
   }
 
+  const r = report.reachability;
+  if (r && !opts.quiet) {
+    out.push(`  detectors ${summarizeReachability(r)}`);
+    if (r.starved.length > 0) {
+      out.push('');
+      out.push('  *** A CLEAN VERDICT HERE IS NOT EVIDENCE OF SAFETY ***');
+      for (const id of r.starved) {
+        out.push(`      ${padRight(id, 12)}${r.detectors[id].note}`);
+      }
+    }
+    out.push('');
+  }
+
   if (report.timeline.length === 0) {
-    out.push('  no signals - trajectory stayed inside its envelope');
+    if (r && r.starved.length > 0) {
+      out.push(`  no signals - but ${r.starved.length} detector(s) could not fire, so this is unproven`);
+    } else {
+      out.push('  no signals - trajectory stayed inside its envelope');
+    }
     out.push('');
     return out.join('\n');
   }
@@ -230,7 +273,7 @@ async function main() {
       });
     if (isTTY) process.stderr.write('\r\x1b[K');
 
-    const summary = summarize(scan);
+    const summary = summarize(scan, { adapter: opts.adapter });
     if (opts.json) {
       process.stdout.write(`${JSON.stringify({ summary, results: scan.results }, null, 2)}\n`);
     } else {
