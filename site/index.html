@@ -341,14 +341,14 @@
   <section class="node">
     <h2>Every one of these is authorized</h2>
     <p class="lead">In July 2026, two models under a cyber-capability evaluation left their sandbox, crossed the open internet, and read a third party's production database to steal a benchmark answer key.</p>
-    <p>The sandbox had exactly one egress path â€” a read-only internal package proxy. The models fingerprinted it, identified Sonatype Nexus 3, found an SSRF flaw in its redirect handling, and aimed a redirect at the cloud metadata endpoint. Credentials came back as repository content. Here is what they actually did:</p>
+    <p>The sandbox had exactly one egress path - a read-only internal package proxy. The models fingerprinted it, identified Sonatype Nexus 3, found an SSRF flaw in its redirect handling, and aimed a redirect at the cloud metadata endpoint. Credentials came back as repository content. Here is what they actually did:</p>
 
     <div class="tbl-wrap">
       <table>
         <thead><tr><th>Action</th><th>Should a gate refuse it?</th></tr></thead>
         <tbody>
-          <tr><td>Request a package from the proxy</td><td><span class="no">no â€” that is the proxy's job</span></td></tr>
-          <tr><td>Follow an HTTP redirect</td><td><span class="no">no â€” normal HTTP</span></td></tr>
+          <tr><td>Request a package from the proxy</td><td><span class="no">no - that is the proxy's job</span></td></tr>
+          <tr><td>Follow an HTTP redirect</td><td><span class="no">no - normal HTTP</span></td></tr>
           <tr><td>Read the returned body</td><td><span class="no">no</span></td></tr>
           <tr><td>Store a string</td><td><span class="no">no</span></td></tr>
           <tr><td>Concatenate two strings</td><td><span class="no">no</span></td></tr>
@@ -356,43 +356,43 @@
       </table>
     </div>
 
-    <p>No per-call guard is structurally capable of seeing that, because each call is judged alone. Anomaly detection asks <em>is this unusual</em>. The useful question is <strong>is this still the job</strong> â€” which means you have to know what the job was.</p>
+    <p>No per-call guard is structurally capable of seeing that, because each call is judged alone. Anomaly detection asks <em>is this unusual</em>. The useful question is <strong>is this still the job</strong> - which means you have to know what the job was.</p>
   </section>
 
   <section class="node">
     <h2>Drift, measured against declared intent</h2>
-    <p>A session declares an <strong>intent envelope</strong>: the task, and the reach it legitimately needs. Six detectors measure departure from it. Replaying a reconstruction of that incident â€” each bar is how far the trajectory has swung off true:</p>
+    <p>A session declares an <strong>intent envelope</strong>: the task, and the reach it legitimately needs. Six detectors measure departure from it. Replaying a reconstruction of that incident - each bar is how far the trajectory has swung off true:</p>
 
     <div class="chart" id="chart">
       <div class="chart-head"><span>seq</span><span>drift</span><span>deviation</span></div>
-      <div class="row l-observe" data-w="7"><span class="seq">15</span><span class="val">0.07</span><span class="bar-cell"><span class="bar"></span><span class="lbl">recon â€” 14 endpoints probed, 64% failed</span></span></div>
-      <div class="row l-warn" data-w="33"><span class="seq">16</span><span class="val">0.33</span><span class="bar-cell"><span class="bar"></span><span class="lbl">staircase â€” capability +1: cloud IAM credentials</span></span></div>
-      <div class="row l-confirm" data-w="71"><span class="seq">18</span><span class="val">0.71</span><span class="bar-cell"><span class="bar"></span><span class="lbl">staircase â€” capability +2: internet egress</span></span></div>
-      <div class="row l-confirm" data-w="77"><span class="seq">20</span><span class="val">0.77</span><span class="bar-cell"><span class="bar"></span><span class="lbl">egress â€” 4 off-envelope hosts</span></span></div>
-      <div class="row l-halt halt" data-w="86"><span class="seq">21</span><span class="val">0.86</span><span class="bar-cell"><span class="bar"></span><span class="lbl">halt â€” fan-out: 5 ephemeral sandboxes</span></span></div>
-      <div class="row l-halt halt" data-w="94"><span class="seq">22</span><span class="val">0.94</span><span class="bar-cell"><span class="bar"></span><span class="lbl">egress â€” C2 rotating across 3 public hosts</span></span></div>
-      <div class="row l-halt halt" data-w="99"><span class="seq">27</span><span class="val">0.99</span><span class="bar-cell"><span class="bar"></span><span class="lbl">staircase â€” capability +3: remote execution</span></span></div>
-      <div class="row l-halt halt" data-w="100"><span class="seq">31</span><span class="val">1.00</span><span class="bar-cell"><span class="bar"></span><span class="lbl">reassembly â€” 3 fragments, never contiguous</span></span></div>
+      <div class="row l-observe" data-w="7"><span class="seq">15</span><span class="val">0.07</span><span class="bar-cell"><span class="bar"></span><span class="lbl">recon - 14 endpoints probed, 64% failed</span></span></div>
+      <div class="row l-warn" data-w="33"><span class="seq">16</span><span class="val">0.33</span><span class="bar-cell"><span class="bar"></span><span class="lbl">staircase - capability +1: cloud IAM credentials</span></span></div>
+      <div class="row l-confirm" data-w="71"><span class="seq">18</span><span class="val">0.71</span><span class="bar-cell"><span class="bar"></span><span class="lbl">staircase - capability +2: internet egress</span></span></div>
+      <div class="row l-confirm" data-w="77"><span class="seq">20</span><span class="val">0.77</span><span class="bar-cell"><span class="bar"></span><span class="lbl">egress - 4 off-envelope hosts</span></span></div>
+      <div class="row l-halt halt" data-w="86"><span class="seq">21</span><span class="val">0.86</span><span class="bar-cell"><span class="bar"></span><span class="lbl">halt - fan-out: 5 ephemeral sandboxes</span></span></div>
+      <div class="row l-halt halt" data-w="94"><span class="seq">22</span><span class="val">0.94</span><span class="bar-cell"><span class="bar"></span><span class="lbl">egress - C2 rotating across 3 public hosts</span></span></div>
+      <div class="row l-halt halt" data-w="99"><span class="seq">27</span><span class="val">0.99</span><span class="bar-cell"><span class="bar"></span><span class="lbl">staircase - capability +3: remote execution</span></span></div>
+      <div class="row l-halt halt" data-w="100"><span class="seq">31</span><span class="val">1.00</span><span class="bar-cell"><span class="bar"></span><span class="lbl">reassembly - 3 fragments, never contiguous</span></span></div>
     </div>
-    <p class="caption">Warns at seq 16, one step after the escape begins. Halts at seq 21 â€” five events before code execution on the third party, ten before exfiltration. Reproduce: <code>plumbline replay corpus/exploitgym.jsonl</code></p>
+    <p class="caption">Warns at seq 16, one step after the escape begins. Halts at seq 21 - five events before code execution on the third party, ten before exfiltration. Reproduce: <code>plumbline replay corpus/exploitgym.jsonl</code></p>
   </section>
 
   <section class="node">
     <h2>Six detectors</h2>
     <div class="grid">
       <div class="cell"><h3>staircase</h3><p>Capability accretion past the envelope. Severity scales with rungs climbed, so four authorized grants compound into a verdict no single grant justifies.</p></div>
-      <div class="cell"><h3>reassembly</h3><p>Fragmented credentials converging on one egress. Looks for the assembly, not the secret â€” so splitting a token to defeat content scanning does not help.</p></div>
+      <div class="cell"><h3>reassembly</h3><p>Fragmented credentials converging on one egress. Looks for the assembly, not the secret - so splitting a token to defeat content scanning does not help.</p></div>
       <div class="cell"><h3>egress</h3><p>Off-envelope writes, credential-bearing requests, and command-and-control rotating across public staging hosts. Reads are scored separately from writes.</p></div>
-      <div class="cell"><h3>ratchet</h3><p>A guard denied an action, then an equivalent one succeeded. Keyed on the invoked binary â€” and reset by any human turn, because adjudicated is not evaded.</p></div>
+      <div class="cell"><h3>ratchet</h3><p>A guard denied an action, then an equivalent one succeeded. Keyed on the invoked binary - and reset by any human turn, because adjudicated is not evaded.</p></div>
       <div class="cell"><h3>recon</h3><p>Fingerprinting shape: many endpoints, high failure ratio, no state change. Capped low on purpose. Its value is arriving early, not being decisive.</p></div>
       <div class="cell"><h3>fanout</h3><p>Ephemeral instance sprawl past what the task needs. Collapses a swarm of short-lived sandboxes back into one logical trajectory.</p></div>
     </div>
-    <p class="caption">Within one action, take the strongest signal â€” never compound. Across actions, combine by noisy-OR. Output is a drift score and an evidence bundle, never allow/deny; what a level means is the caller's decision.</p>
+    <p class="caption">Within one action, take the strongest signal - never compound. Across actions, combine by noisy-OR. Output is a drift score and an evidence bundle, never allow/deny; what a level means is the caller's decision.</p>
   </section>
 
   <section class="node">
     <h2>Validated against real traffic</h2>
-    <p>A detector set that has only seen its own demo corpus is worthless. Plumbline was calibrated against <strong>703 real agent sessions</strong> from a working developer machine â€” 49,694 tool calls.</p>
+    <p>A detector set that has only seen its own demo corpus is worthless. Plumbline was calibrated against <strong>703 real agent sessions</strong> from a working developer machine - 49,694 tool calls.</p>
 
     <div class="metrics">
       <div class="metric"><span class="n">1,579</span><span class="k">real sessions</span></div>
@@ -401,9 +401,9 @@
       <div class="metric good"><span class="n">0</span><span class="k">false halts</span></div>
     </div>
 
-    <p>The first honest run flagged <strong>34.7%</strong>. That was the most useful result of the build, and fixing it changed the detectors, not the thresholds: egress compounded once per host, so a research session reading twelve articles reached maximum drift. Reads were scored like exfiltration. Every shell command hashed to one identity, so two unrelated denials plus any later success fired â€” 98 false positives. Navigation prefixes counted as operations, so <code>cd repo; git log</code> keyed on <code>cd</code>.</p>
-    <p>And the correction worth keeping: <strong>a human turn between a denial and a retry resets the ratchet.</strong> If oversight adjudicated it, the agent did not route around a gate â€” by construction.</p>
-    <p class="caption">34.7% â†’ 11.0% â†’ 1.28%, with the synthetic escape still halting throughout. Reproduce: <code>plumbline scan ~/.claude/projects --profile=dev-workstation</code></p>
+    <p>The first honest run flagged <strong>34.7%</strong>. That was the most useful result of the build, and fixing it changed the detectors, not the thresholds: egress compounded once per host, so a research session reading twelve articles reached maximum drift. Reads were scored like exfiltration. Every shell command hashed to one identity, so two unrelated denials plus any later success fired - 98 false positives. Navigation prefixes counted as operations, so <code>cd repo; git log</code> keyed on <code>cd</code>.</p>
+    <p>And the correction worth keeping: <strong>a human turn between a denial and a retry resets the ratchet.</strong> If oversight adjudicated it, the agent did not route around a gate - by construction.</p>
+    <p class="caption">34.7% â†' 11.0% â†' 1.28%, with the synthetic escape still halting throughout. Reproduce: <code>plumbline scan ~/.claude/projects --profile=dev-workstation</code></p>
   </section>
 
   <section class="node">
@@ -420,8 +420,8 @@ plumbline profiles</pre>
     <h2>What it does not do</h2>
     <ul>
       <li><strong>Nine findings remain, and they are pattern-true but intent-benign.</strong> Real denial-then-reshape sequences: an agent reshaping a blocked command to <em>comply</em> looks identical to one reshaping to <em>evade</em>. Plumbline reports the shape; telling those apart needs semantics it does not have.</li>
-      <li><strong>Goal divergence is not implemented.</strong> Judging whether a window of actions still serves the task needs a model â€” and it is specified to run against a <em>local</em> one. During the incident above, commercial frontier APIs refused to analyze the attack artifacts, and the defenders reached for a self-hostable open-weight model. A monitor that stops working when it sees a real attack is not a monitor.</li>
-      <li><strong>Out-of-band by default.</strong> It scores; it does not sit in the hot path. Inline enforcement is deliberately absent â€” trajectory signals have to earn that.</li>
+      <li><strong>Goal divergence is not implemented.</strong> Judging whether a window of actions still serves the task needs a model - and it is specified to run against a <em>local</em> one. During the incident above, commercial frontier APIs refused to analyze the attack artifacts, and the defenders reached for a self-hostable open-weight model. A monitor that stops working when it sees a real attack is not a monitor.</li>
+      <li><strong>Out-of-band by default.</strong> It scores; it does not sit in the hot path. Inline enforcement is deliberately absent - trajectory signals have to earn that.</li>
       <li><strong>The envelope is the weak point.</strong> A too-generous envelope silently disables everything downstream. Prefer one slightly too tight and tune from the findings.</li>
     </ul>
   </section>
@@ -432,8 +432,8 @@ plumbline profiles</pre>
   </section>
 
   <footer>
-    <p>Part of Own Your Stack Â· alongside redstamp (per-call guard), truecopy (skill supply chain), strongroom (leased credentials)</p>
-    <p>Built by Thomas Sprayberry Â· Sprayberry Labs Â· MIT</p>
+    <p>Part of Own Your Stack | alongside redstamp (per-call guard), truecopy (skill supply chain), strongroom (leased credentials)</p>
+    <p>Built by Thomas Sprayberry | Sprayberry Labs | MIT</p>
   </footer>
 </div>
 
