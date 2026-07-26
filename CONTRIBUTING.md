@@ -20,6 +20,8 @@ node src/cli.mjs replay corpus/exploitgym.jsonl
 
 An adapter turns a harness's logs into the [trajectory schema](SPEC.md). Look at `src/adapters/claude-code.mjs` (per-session transcript files), `src/adapters/forge.mjs` (many sessions in one dump), and `src/adapters/redstamp.mjs` (a hash-chained per-call audit log, with the `block` -> `denied` mapping that makes `ratchet` live and an inline chain verify for tamper-evidence) — they cover the common shapes.
 
+**If the harness's tools are user-defined** — OpenAI, Anthropic, LangChain and OTel all are — don't hand-write a capability map you can't complete. Parse the log into the flat record shape (`{ kind: 'human' | 'tool', name, args, output, isError }`) and hand it to `src/agentlog.mjs`, which infers the action and capability from each tool's name and arguments and handles secret measurement, denial detection, and `session.declare` for you. `src/adapters/openai.mjs` is the smallest example — the four framework adapters are each ~60 lines of pure parsing on top of that shared core.
+
 Four things matter, roughly in order of how easy they are to get wrong.
 
 ### 1. Emit `capability_grant` — this is not optional
