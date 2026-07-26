@@ -1,0 +1,180 @@
+<!-- plumbline OG card. Fixed 1200x630. Rendered to PNG via headless CDP.
+     Self-contained, no external assets, no webfonts (CDP has system mono/serif). -->
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1200px; height: 630px; overflow: hidden; }
+  :root {
+    --ground: #0e1418;
+    --ground-2: #141d23;
+    --ink: #e9eff3;
+    --ink-2: #b3c2cb;
+    --muted: #6f8492;
+    --line: #24323a;
+    --brass: #c9a227;
+    --brass-dim: #8a7220;
+    --observe: #5f8296;
+    --warn: #d9a13d;
+    --confirm: #d97038;
+    --halt: #c94b3f;
+    --mono: "SF Mono", "Cascadia Mono", "DejaVu Sans Mono", Menlo, Consolas, monospace;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  }
+  body {
+    background:
+      radial-gradient(120% 90% at 88% 12%, #17222b 0%, var(--ground) 55%),
+      var(--ground);
+    color: var(--ink);
+    font-family: var(--serif);
+    display: grid;
+    grid-template-columns: 500px 1fr;
+    position: relative;
+  }
+
+  /* the plumb line: a true vertical dividing the card, with the bob at its foot */
+  .plumb {
+    position: absolute;
+    left: 500px; top: 0; bottom: 0;
+    width: 1px;
+    background: linear-gradient(to bottom, transparent, var(--line) 90px, var(--line) 470px, transparent);
+  }
+  .plumb::after {
+    content: "";
+    position: absolute;
+    left: 50%; bottom: 96px;
+    width: 13px; height: 20px;
+    transform: translateX(-50%);
+    background: var(--brass-dim);
+    clip-path: polygon(50% 100%, 0 28%, 0 0, 100% 0, 100% 28%);
+  }
+
+  /* ---- left: brand ---- */
+  .left { padding: 64px 56px 56px 72px; display: flex; flex-direction: column; }
+  .mark {
+    font-family: var(--mono);
+    font-size: 76px;
+    font-weight: 600;
+    letter-spacing: -0.045em;
+    line-height: 1;
+  }
+  .mark .dot { color: var(--brass); }
+  .tagline {
+    font-family: var(--mono);
+    font-size: 15.5px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-top: 22px;
+  }
+  .thesis {
+    font-size: 30px;
+    line-height: 1.32;
+    color: var(--ink);
+    margin-top: auto;
+    max-width: 15ch;
+  }
+  .thesis em { color: var(--brass); font-style: italic; }
+  .foot {
+    font-family: var(--mono);
+    font-size: 14px;
+    color: var(--muted);
+    margin-top: 30px;
+    letter-spacing: 0.02em;
+    line-height: 1.7;
+  }
+  .foot b { color: var(--ink-2); font-weight: 400; }
+  .foot .l2 { display: block; }
+
+  /* ---- right: the deviation chart (ExploitGym replay) ---- */
+  .right { padding: 60px 64px 56px 64px; display: flex; flex-direction: column; }
+  .chart-title {
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .chart-sub {
+    font-family: var(--serif);
+    font-size: 15px;
+    color: var(--ink-2);
+    margin-bottom: 26px;
+  }
+  .rows { display: flex; flex-direction: column; gap: 0; flex: 1; justify-content: center; }
+  .row {
+    display: grid;
+    grid-template-columns: 38px 50px 192px 1fr;
+    align-items: center;
+    height: 40px;
+    font-family: var(--mono);
+    font-size: 14px;
+  }
+  .row .seq { color: var(--muted); }
+  .row .val { color: var(--ink); font-variant-numeric: tabular-nums; }
+  /* bar lives in its own fixed 180px track, so it can never strike the label */
+  .bar-cell { position: relative; height: 100%; display: flex; align-items: center; }
+  .bar {
+    height: 3px;
+    border-radius: 2px;
+    background: currentColor;
+    position: relative;
+  }
+  .bar::after {
+    content: "";
+    position: absolute;
+    right: -3px; top: 50%;
+    width: 7px; height: 7px;
+    transform: translateY(-50%) rotate(45deg);
+    background: currentColor;
+  }
+  .lbl {
+    white-space: nowrap;
+    font-size: 13px;
+    color: var(--ink-2);
+    padding-left: 4px;
+  }
+  .lbl .det { color: var(--muted); }
+  .o { color: var(--observe); }
+  .w { color: var(--warn); }
+  .c { color: var(--confirm); }
+  .h { color: var(--halt); }
+  .haltmark {
+    color: var(--halt);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
+</style>
+
+<div class="plumb"></div>
+
+<div class="left">
+  <div>
+    <div class="mark">plumbline<span class="dot">.</span></div>
+    <div class="tagline">trajectory-level monitoring</div>
+  </div>
+  <div class="thesis">An agent escape can be built from actions your guard <em>already approved.</em></div>
+  <div class="foot"><b>npm i -g @askalf/plumbline</b><span class="l2">MIT &nbsp;·&nbsp; Own Your Stack</span></div>
+</div>
+
+<div class="right">
+  <div class="chart-title">replay · exploitgym escape</div>
+  <div class="chart-sub">Drift measured as departure from declared intent.</div>
+  <div class="rows">
+    <!-- bar width = drift * 180px, within a fixed 192px track; label in its own column -->
+    <div class="row o"><span class="seq">15</span><span class="val">0.07</span>
+      <span class="bar-cell"><span class="bar" style="width:13px"></span></span><span class="lbl"><span class="det">recon</span> &middot; 14 endpoints probed</span></div>
+    <div class="row w"><span class="seq">16</span><span class="val">0.33</span>
+      <span class="bar-cell"><span class="bar" style="width:59px"></span></span><span class="lbl"><span class="det">staircase</span> &middot; cloud IAM credentials</span></div>
+    <div class="row c"><span class="seq">18</span><span class="val">0.71</span>
+      <span class="bar-cell"><span class="bar" style="width:128px"></span></span><span class="lbl"><span class="det">staircase</span> &middot; internet egress</span></div>
+    <div class="row h"><span class="seq">21</span><span class="val">0.86</span>
+      <span class="bar-cell"><span class="bar" style="width:155px"></span></span><span class="lbl"><span class="haltmark">HALT</span> &middot; 5 ephemeral sandboxes</span></div>
+    <div class="row h"><span class="seq">27</span><span class="val">0.99</span>
+      <span class="bar-cell"><span class="bar" style="width:178px"></span></span><span class="lbl"><span class="det">staircase</span> &middot; remote execution</span></div>
+    <div class="row h"><span class="seq">31</span><span class="val">1.00</span>
+      <span class="bar-cell"><span class="bar" style="width:180px"></span></span><span class="lbl"><span class="det">reassembly</span> &middot; fragments exfiltrated</span></div>
+  </div>
+  <div class="chart-sub" style="margin-bottom:0; margin-top:20px; color:var(--muted); font-family:var(--mono); font-size:13px;">
+    Warns at seq 16. Halts at 21 &mdash; five events before the breach.
+  </div>
+</div>
