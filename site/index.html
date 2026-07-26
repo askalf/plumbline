@@ -392,7 +392,7 @@
 
   <section class="node">
     <h2>Validated against real traffic</h2>
-    <p>A detector set that has only seen its own demo corpus is worthless. Plumbline was calibrated against <strong>703 real agent sessions</strong> from a working developer machine - 49,694 tool calls.</p>
+    <p>A detector set that has only seen its own demo corpus is worthless. Plumbline was validated against <strong>1,579 real agent sessions</strong> across two machines and two independent harnesses - 57,388 tool calls.</p>
 
     <div class="metrics">
       <div class="metric"><span class="n">1,579</span><span class="k">real sessions</span></div>
@@ -401,9 +401,38 @@
       <div class="metric good"><span class="n">0</span><span class="k">false halts</span></div>
     </div>
 
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Corpus</th><th>Environment</th><th>Sessions</th><th>Tool calls</th><th>Clean</th><th>False halts</th></tr></thead>
+        <tbody>
+          <tr><td>Claude Code</td><td>workstation A</td><td class="num">703</td><td class="num">49,778</td><td class="num">98.7%</td><td class="num">0</td></tr>
+          <tr><td>Claude Code</td><td>workstation B</td><td class="num">48</td><td class="num">752</td><td class="num">100%</td><td class="num">0</td></tr>
+          <tr><td>Forge SDK engine</td><td>self-hosted server</td><td class="num">828</td><td class="num">6,858</td><td class="num">100%</td><td class="num">0</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>The second <em>harness</em> matters more than the second machine: it runs server-side with a completely disjoint tool vocabulary - <code>shell_exec</code>, <code>db_query</code>, <code>mail_send</code>, <code>container_ctl</code>. Same detectors, same scoring, no engine changes. That tests the schema's portability rather than merely asserting it.</p>
+
+    <h3 style="margin-top:2.5rem">The control that proves the detectors are live</h3>
+    <p>A 100% clean result is indistinguishable from a dead detector chain, so the envelope has to be shown doing real work. The <strong>same 828 trajectories</strong>, scored against a different envelope:</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Profile</th><th>Clean</th><th>Flagged</th><th>Capability signals</th></tr></thead>
+        <tbody>
+          <tr><td><code>fleet-agent</code> - their actual envelope</td><td class="num">100%</td><td class="num">0</td><td class="num">0</td></tr>
+          <tr><td><code>eval-sandbox</code> - grants almost nothing</td><td class="num">0%</td><td class="num">828</td><td class="num">1,449</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>Identical inputs, opposite verdicts, decided entirely by the declared envelope. This is also the clearest demonstration of the limitation below: a too-generous envelope silently disables everything downstream.</p>
+
     <p>The first honest run flagged <strong>34.7%</strong>. That was the most useful result of the build, and fixing it changed the detectors, not the thresholds: egress compounded once per host, so a research session reading twelve articles reached maximum drift. Reads were scored like exfiltration. Every shell command hashed to one identity, so two unrelated denials plus any later success fired - 98 false positives. Navigation prefixes counted as operations, so <code>cd repo; git log</code> keyed on <code>cd</code>.</p>
     <p>And the correction worth keeping: <strong>a human turn between a denial and a retry resets the ratchet.</strong> If oversight adjudicated it, the agent did not route around a gate - by construction.</p>
-    <p class="caption">34.7% -&gt; 11.0% -&gt; 1.28%, with the synthetic escape still halting throughout. And the control that mattered most: the same 828 forge trajectories score 100% clean under their own envelope and 0% clean under an eval-sandbox envelope, which is how you prove a detector is live rather than dead. Reproduce: <code>plumbline scan ~/.claude/projects --profile=dev-workstation</code></p>
+    <p>But the one that mattered most was caught by the control above. Capability accretion - the primary detector - reads a single field that <em>neither adapter emitted</em>. It had been completely inert on real traffic, firing only on the hand-authored corpus. Every clean number was measured with the most important detector switched off. The rates survived the fix; they just mean something now.</p>
+    <p class="caption">A clean result and a dead detector look identical from the outside. That is now a permanent test: a fixture triggers all six detectors and CI asserts each one still fires, so a detector cannot go quietly inert again.</p>
   </section>
 
   <section class="node">
@@ -413,7 +442,8 @@
 plumbline replay corpus/exploitgym.jsonl
 plumbline scan ~/.claude/projects --profile=dev-workstation
 plumbline profiles</pre>
-    <p>Zero dependencies, MIT. Profiles ship for <code>eval-sandbox</code>, <code>ci-runner</code> and <code>dev-workstation</code>. <code>--exit-code</code> returns 1 on <code>confirm</code> or <code>halt</code>, for CI.</p>
+    <p>Zero dependencies, MIT, 86 tests. Profiles ship for <code>eval-sandbox</code>, <code>ci-runner</code>, <code>dev-workstation</code> and <code>fleet-agent</code>. <code>--exit-code</code> returns 1 on <code>confirm</code> or <code>halt</code>, for CI.</p>
+    <p class="caption">Reference: the trajectory schema and conformance rules in SPEC.md; per-detector severity, tuning and blind spots in DETECTORS.md; the threat model - including what is explicitly out of scope - in SECURITY.md.</p>
   </section>
 
   <section class="node">
