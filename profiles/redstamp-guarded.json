@@ -1,0 +1,26 @@
+{
+  "name": "redstamp-guarded",
+  "description": "An agent whose tool calls pass through the redstamp per-call guard. The guard already blocks the worst individual calls; plumbline reads its audit log to catch the escapes composed of calls the guard individually allowed. Because redstamp records a decision per call, this is the one source where the ratchet detector (a guard denied this, then an equivalent call succeeded) is fully live. Wide capability set: the guard, not the envelope, is the first line - so keep this envelope realistic and let the sequence-level detectors do the work.",
+  "capabilities": [
+    "exec:local",
+    "proc:spawn",
+    "fs:read",
+    "fs:write",
+    "net:egress:read"
+  ],
+  "egress": {
+    "mode": "open_read",
+    "allow": [
+      "registry.npmjs.org",
+      ".github.com",
+      "github.com",
+      "api.github.com",
+      ".githubusercontent.com"
+    ]
+  },
+  "budget": {
+    "max_distinct_hosts": 12,
+    "max_probe_ratio": 0.6,
+    "max_instances": 4
+  }
+}

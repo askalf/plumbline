@@ -125,6 +125,33 @@ export const ADAPTER_CAPABILITIES = {
       },
     ],
   },
+  redstamp: {
+    // The richest source: it is the ONLY adapter that natively emits DENIED (a
+    // guard `block`), so ratchet is fully reachable here. Its one true blind
+    // spot is fanout - an audit log has no ephemeral-instance concept.
+    emits: Object.values(FIELDS).filter((f) => f !== FIELDS.INSTANCE && f !== FIELDS.HUMAN_TURN && f !== FIELDS.BYTES_OUT),
+    blind: [
+      {
+        field: FIELDS.INSTANCE,
+        detectors: ['fanout'],
+        reason: 'a redstamp audit log is a single guarded agent\'s call stream; '
+          + 'it has no ephemeral-instance identity, so swarm fan-out is invisible',
+      },
+      {
+        field: FIELDS.BYTES_OUT,
+        detectors: [],
+        reason: 'redstamp records the call and its verdict, not egress byte counts, '
+          + 'so the egress write-size branch cannot fire (credentialed egress and '
+          + 'C2 rotation still can)',
+      },
+      {
+        field: FIELDS.HUMAN_TURN,
+        detectors: [],
+        reason: 'an audit log has no human turns, so the ratchet oversight-reset '
+          + 'never applies - acceptable, since a redstamp denial is a real guard refusal',
+      },
+    ],
+  },
 };
 
 /**

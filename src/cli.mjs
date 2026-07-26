@@ -9,7 +9,7 @@
 
 import { readFileSync } from 'node:fs';
 import { assessTrajectory, assessTrajectoryWithSemantic, DETECTOR_IDS, TrajectoryError, summarizeReachability } from './index.mjs';
-import { loadProfile, listProfiles, scanCorpus, scanForgeDump, summarize } from './scan.mjs';
+import { loadProfile, listProfiles, scanCorpus, scanForgeDump, scanRedstampAudit, summarize } from './scan.mjs';
 import { ollamaJudge, DEFAULT_MODEL } from './judges/ollama.mjs';
 
 const USAGE = `plumbline - trajectory-level monitoring for autonomous agents
@@ -26,7 +26,7 @@ Options:
   --evidence        Print the evidence bundle for every signal
   --only=a,b        Run only the named detectors
   --profile=NAME    Envelope profile for scan (${listProfiles().join(', ')})
-  --adapter=NAME    claude-code (default) | forge
+  --adapter=NAME    claude-code (default) | forge | redstamp
   --semantic        Also run the model-backed semantic detector (replay only).
                     Catches in-envelope escapes shape cannot see. Needs a local
                     ollama at 127.0.0.1:11434 (model ${DEFAULT_MODEL}); override
@@ -290,7 +290,9 @@ async function main() {
     const isTTY = process.stderr.isTTY;
     const scan = opts.adapter === 'forge'
       ? await scanForgeDump(file, profile, { limit: opts.limit })
-      : await scanCorpus(file, profile, {
+      : opts.adapter === 'redstamp'
+        ? await scanRedstampAudit(file, profile)
+        : await scanCorpus(file, profile, {
         limit: opts.limit,
         onProgress: (done, total) => {
           if (isTTY && (done % 25 === 0 || done === total)) {

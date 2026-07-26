@@ -13,6 +13,7 @@ import { normalizeEvent } from './schema.mjs';
 import { assess } from './index.mjs';
 import { readTranscript, declareFor } from './adapters/claude-code.mjs';
 import { readExecutions } from './adapters/forge.mjs';
+import { readRedstampAudit } from './adapters/redstamp.mjs';
 import { DEPENDENCIES, classifyDeadDetectors } from './reachability.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -159,6 +160,42 @@ export async function scanForgeDump(file, profile, { limit = Infinity, threshold
   }
 
   return { results, skipped, scanned: trajectories.length, profile: profile.name ?? 'custom' };
+}
+
+/**
+ * Assess a single redstamp audit log as one trajectory.
+ *
+ * Unlike forge (many sessions per dump) a redstamp log is one guarded agent's
+ * call stream = one trajectory, so this returns a single-session scan shape for
+ * consistency with the other adapters.
+ */
+export async function scanRedstampAudit(file, profile, { thresholds } = {}) {
+  const { events, chain } = await readRedstampAudit(file, profile);
+  if (events.length <= 1) {
+    return { results: [], skipped: [{ path: file, reason: 'no audit records' }], scanned: 0, profile: profile.name ?? 'custom' };
+  }
+  const normalized = events.map((e, i) => normalizeEvent(e, { line: i + 1 }));
+  const report = assess(normalized, { thresholds });
+  return {
+    results: [{
+      path: file,
+      session: events[0].session,
+      task: profile.task ?? null,
+      cwd: null,
+      chain,
+      tool_calls: events.length - 1,
+      tools: {},
+      level: report.level,
+      drift: report.drift,
+      crossings: report.crossings,
+      earliest_actionable: report.earliest_actionable,
+      reachability: report.reachability,
+      signals: report.signals.map((s) => ({ detector: s.detector, seq: s.seq, label: s.label, detail: s.detail ?? null, severity: s.severity })),
+    }],
+    skipped: [],
+    scanned: 1,
+    profile: profile.name ?? 'custom',
+  };
 }
 
 /** Scan a directory tree of transcripts. */

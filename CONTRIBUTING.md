@@ -18,7 +18,7 @@ node src/cli.mjs replay corpus/exploitgym.jsonl
 
 ## Writing an adapter
 
-An adapter turns a harness's logs into the [trajectory schema](SPEC.md). Look at `src/adapters/claude-code.mjs` (per-session transcript files) and `src/adapters/forge.mjs` (many sessions in one dump) — they cover both common shapes.
+An adapter turns a harness's logs into the [trajectory schema](SPEC.md). Look at `src/adapters/claude-code.mjs` (per-session transcript files), `src/adapters/forge.mjs` (many sessions in one dump), and `src/adapters/redstamp.mjs` (a hash-chained per-call audit log, with the `block` -> `denied` mapping that makes `ratchet` live and an inline chain verify for tamper-evidence) — they cover the common shapes.
 
 Four things matter, roughly in order of how easy they are to get wrong.
 

@@ -207,7 +207,20 @@ The general lesson, and the reason both the control and reachability ship as per
 
 ## Adapters
 
-`plumbline scan` reads Claude Code transcripts today. The trajectory schema (`schema/trajectory.schema.json`) is deliberately harness-agnostic — redstamp audit streams, forge execution steps, OpenTelemetry GenAI spans, LangChain and CrewAI callbacks all map onto it. Adapters are the contribution most wanted.
+`plumbline scan` reads three sources today, selected with `--adapter`:
+
+| Adapter | Source | Notable |
+|---|---|---|
+| `claude-code` (default) | `~/.claude/projects/**/*.jsonl` transcripts | one transcript = one session |
+| `forge` | a dump of agent-execution records | server-side SDK engine; disjoint tool vocabulary |
+| `redstamp` | a [redstamp](https://github.com/askalf/redstamp) per-call audit log | see below |
+
+**The redstamp adapter closes the Own Your Stack loop.** redstamp is the per-call guard; it records a `decision` for every tool call and chains each audit record to the previous with a hash. plumbline reads that log and catches the escapes the guard *individually allowed*. It is distinctive for two reasons:
+
+- **It is the only source that natively feeds the `ratchet` detector.** A redstamp `block` is a denial, so a guard-denied call followed by a reshaped call that passed — evasion the per-call guard structurally cannot see — is caught at the trajectory level. `plumbline scan <audit.jsonl> --adapter=redstamp --profile=redstamp-guarded` on the shipped fixture flags exactly that: two blocked `systemctl` calls, then a `systemctl --user` that slipped through.
+- **It verifies the audit hash chain.** A monitored agent that edits its own audit trail to hide a denial breaks the chain; plumbline detects the break, names the record, and emits a tamper event into the verdict. This directly closes plumbline's own log-integrity threat (see SECURITY.md) for redstamp sources.
+
+The trajectory schema (`schema/trajectory.schema.json`) is deliberately harness-agnostic — OpenTelemetry GenAI spans, LangChain and CrewAI callbacks map onto it the same way. More adapters are the contribution most wanted; see CONTRIBUTING.md.
 
 ## Programmatic use
 
