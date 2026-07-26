@@ -21,16 +21,44 @@ import { loadProfile, listProfiles } from '../src/scan.mjs';
 const here = dirname(fileURLToPath(import.meta.url));
 const corpus = (name) => readFileSync(join(here, '..', 'corpus', name), 'utf8');
 
-test('LIVENESS: every registered detector fires on the exercise corpus', () => {
+/**
+ * The expected detector set, written out literally and deliberately NOT derived
+ * from the registry.
+ *
+ * An earlier version of this guard compared the fired set against DETECTOR_IDS.
+ * That is circular: unregistering a detector removes it from both sides of the
+ * comparison, so the test passes while the detector is gone — precisely the
+ * failure mode this file exists to prevent, reproduced inside the prevention.
+ *
+ * Adding a detector means updating this list AND adding a trigger to
+ * corpus/detector-exercise.jsonl. That friction is the point.
+ */
+const EXPECTED_DETECTORS = ['egress', 'fanout', 'ratchet', 'reassembly', 'recon', 'staircase'];
+
+test('LIVENESS: every expected detector fires on the exercise corpus', () => {
   const report = assessTrajectory(corpus('detector-exercise.jsonl'));
   const fired = new Set(report.signals.map((s) => s.detector));
 
-  const silent = DETECTOR_IDS.filter((id) => !fired.has(id));
+  const silent = EXPECTED_DETECTORS.filter((id) => !fired.has(id));
   assert.deepEqual(
     silent,
     [],
-    `these detectors produced no signal and may be inert: ${silent.join(', ')}. ` +
-      'Either the detector broke or corpus/detector-exercise.jsonl no longer triggers it.',
+    `these detectors produced no signal and may be inert or unregistered: ${silent.join(', ')}. ` +
+      'Either the detector broke, it was dropped from src/detect/index.mjs, or ' +
+      'corpus/detector-exercise.jsonl no longer triggers it.',
+  );
+});
+
+test('LIVENESS: the registry matches the expected set exactly', () => {
+  // The other half of the non-circularity guarantee. The test above catches a
+  // detector going silent; this one catches the registry drifting from the
+  // documented set in either direction — a detector quietly dropped, or a new
+  // one added without a corpus trigger and a DETECTORS.md entry.
+  assert.deepEqual(
+    [...DETECTOR_IDS].sort(),
+    [...EXPECTED_DETECTORS].sort(),
+    'src/detect/index.mjs no longer matches EXPECTED_DETECTORS. If you added or ' +
+      'removed a detector, update this list, corpus/detector-exercise.jsonl and DETECTORS.md.',
   );
 });
 
