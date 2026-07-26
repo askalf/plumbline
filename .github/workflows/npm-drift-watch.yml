@@ -1,0 +1,115 @@
+name: npm drift watch
+
+# Safety net for the OIDC publish pipeline. Once a day (and on demand) it
+# compares the version in package.json on main against what's actually the
+# `latest` tag on the npm registry. If main is ahead, a release got stranded
+# — usually a trusted-publisher misconfig or a failed publish.yml run — and
+# this opens (or refreshes) a single tracking issue telling you to
+# re-dispatch publish.yml. It NEVER publishes anything itself.
+
+on:
+  schedule:
+    - cron: '17 6 * * *' # 06:17 UTC daily — off the top of the hour
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write # open / update / close the drift tracking issue
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Compare package.json version to the npm registry
+        id: check
+        run: |
+          set -euo pipefail
+          local_v=$(node -p "require('./package.json').version")
+          echo "local=${local_v}"
+          # E404 (package/version never published) is treated as no drift here —
+          # first-publish is a human action, not something this watcher chases.
+          if reg_v=$(npm view '@askalf/plumbline' version 2>/dev/null); then
+            echo "registry=${reg_v}"
+          else
+            reg_v=""
+            echo "registry=<unpublished or registry error>"
+          fi
+          echo "local=${local_v}" >> "$GITHUB_OUTPUT"
+          echo "registry=${reg_v}" >> "$GITHUB_OUTPUT"
+          if [ -n "$reg_v" ] && [ "$local_v" != "$reg_v" ]; then
+            echo "drift=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "drift=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open or refresh the drift issue
+        if: steps.check.outputs.drift == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LOCAL: ${{ steps.check.outputs.local }}
+          REGISTRY: ${{ steps.check.outputs.registry }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/workflows/publish.yml
+        run: |
+          set -euo pipefail
+          marker='<!-- plumbline-npm-drift -->'
+          title="npm registry drift: package.json is ${LOCAL}, registry latest is ${REGISTRY}"
+          body=$(cat <<EOF
+          ${marker}
+
+          **package.json (main):** \`${LOCAL}\`
+          **npm \`latest\`:** \`${REGISTRY}\`
+
+          main is ahead of what's published — a release was likely stranded (a
+          failed \`publish.yml\` run, or a trusted-publisher misconfiguration on
+          npmjs.com).
+
+          **To resolve:** re-dispatch the OIDC publisher:
+
+          \`\`\`
+          gh workflow run publish.yml --repo ${REPO} --ref main
+          \`\`\`
+
+          Or from the Actions tab: ${RUN_URL} → "Run workflow".
+
+          \`publish.yml\` is idempotent — if it turns out \`${LOCAL}\` is already
+          published, the run is a green no-op and this issue auto-closes on the
+          next drift-watch run.
+
+          _Filed automatically by \`npm-drift-watch.yml\`._
+          EOF
+          )
+          # Find an existing open drift issue by its hidden marker (dedupe).
+          existing=$(gh issue list --repo "$REPO" --state open --label npm-drift \
+            --json number,body --jq \
+            "map(select(.body | contains(\"${marker}\"))) | .[0].number // empty")
+          if [ -n "$existing" ]; then
+            echo "Refreshing existing drift issue #${existing}."
+            gh issue edit "$existing" --repo "$REPO" --title "$title" --body "$body"
+          else
+            echo "Opening a new drift issue."
+            gh issue create --repo "$REPO" --title "$title" --body "$body" --label npm-drift
+          fi
+
+      - name: Close a stale drift issue once versions match
+        if: steps.check.outputs.drift != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          marker='<!-- plumbline-npm-drift -->'
+          gh issue list --repo "$REPO" --state open --label npm-drift \
+            --json number,body --jq \
+            "map(select(.body | contains(\"${marker}\"))) | .[].number" | while read -r n; do
+            [ -n "$n" ] || continue
+            echo "Versions match — closing stale drift issue #${n}."
+            gh issue close "$n" --repo "$REPO" \
+              --comment "package.json and the npm \`latest\` tag match again; closing."
+          done

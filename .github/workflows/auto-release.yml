@@ -1,0 +1,183 @@
+name: Auto-release
+
+# Triggered when package.json's "version" field changes on main.
+# Tags vX.Y.Z, creates a GitHub release from the matching CHANGELOG
+# section, then DISPATCHES publish.yml, which publishes to npm via OIDC
+# trusted publishing (tokenless — no NPM_TOKEN anywhere in this repo).
+#
+# Why a dispatch instead of publishing inline: npm allows one trusted
+# publisher per package and it is bound to publish.yml's filename. And a
+# `release: published` trigger over there would never fire — events created
+# with GITHUB_TOKEN (like our `gh release create`) do not start workflows.
+# An explicit `gh workflow run` does.
+#
+# Idempotent — if the tag already exists the job exits cleanly without
+# republishing. Manual re-runs via workflow_dispatch are safe.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - package.json
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the tag + create the GitHub release
+      actions: write # dispatch publish.yml
+      id-token: write # keyless Sigstore signing (attest-build-provenance)
+      attestations: write # persist the attestation in GitHub's store
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false # tag push below supplies the token explicitly
+
+      - name: Read version from package.json
+        id: version
+        run: |
+          set -euo pipefail
+          v=$(node -p "require('./package.json').version")
+          echo "version=${v}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${v}" >> "$GITHUB_OUTPUT"
+          echo "Detected version: ${v}"
+
+      - name: Skip if tag already exists
+        id: gate
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          # fetch-depth: 0 fetched all refs, so a local tag check is reliable here.
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists; nothing to do."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Only gate on a bump for PUSH events, and compare against the push's actual
+      # previous tip (github.event.before), not HEAD~1 — a multi-commit push whose
+      # bump isn't the tip would otherwise strand the release. On a manual
+      # workflow_dispatch this step is skipped, so a backfill relies only on the
+      # tag-exists gate above (the correct idempotency key).
+      - name: Skip if version field didn't change in this push
+        id: bumped
+        if: steps.gate.outputs.skip != 'true' && github.event_name == 'push'
+        env:
+          NEW: ${{ steps.version.outputs.version }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          old=""
+          if [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ]; then
+            old=$(git show "$BEFORE:package.json" 2>/dev/null | node -e "
+              let s = ''; process.stdin.on('data', d => s += d).on('end', () => {
+                try { console.log(JSON.parse(s).version); } catch { console.log(''); }
+              });
+            " || echo "")
+          fi
+          echo "old=${old}"
+          echo "new=${NEW}"
+          if [ "$old" = "$NEW" ]; then
+            echo "Version unchanged ($old -> $NEW); skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Version bumped: $old -> $NEW"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        if: steps.gate.outputs.skip != 'true' && steps.bumped.outputs.skip != 'true'
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+          package-manager-cache: false
+
+      - name: Install + test
+        if: steps.gate.outputs.skip != 'true' && steps.bumped.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          npm install --no-audit --no-fund
+          npm test
+
+      - name: Extract release notes from CHANGELOG
+        if: steps.gate.outputs.skip != 'true' && steps.bumped.outputs.skip != 'true'
+        id: notes
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          node -e "
+            const fs = require('fs');
+            const md = fs.existsSync('CHANGELOG.md') ? fs.readFileSync('CHANGELOG.md', 'utf-8') : '';
+            const re = new RegExp('^## \\\\[' + process.env.VERSION + '\\\\][^\\\\n]*\\\\n([\\\\s\\\\S]*?)(?=\\\\n## \\\\[|(?![\\\\s\\\\S]))', 'm');
+            const m = re.exec(md);
+            const body = m ? m[1].trim() : '';
+            fs.writeFileSync('release-notes.md', body || ('Release v' + process.env.VERSION));
+          "
+          echo "notes_path=release-notes.md" >> "$GITHUB_OUTPUT"
+
+      - name: Create annotated tag
+        if: steps.gate.outputs.skip != 'true' && steps.bumped.outputs.skip != 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          git config user.name 'askalf'
+          git config user.email '263217947+askalf@users.noreply.github.com'
+          git tag -a "$TAG" -m "Release $TAG"
+          # Push with an explicit token so it never lands in .git/config during the
+          # install+test step above (checkout runs persist-credentials: false).
+          git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$TAG"
+
+      - name: Create GitHub release
+        if: steps.gate.outputs.skip != 'true' && steps.bumped.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --notes-file release-notes.md
+
+      - name: Build npm tarball (release artifact)
+        if: steps.gate.outputs.skip != 'true' && steps.bumped.outputs.skip != 'true'
+        id: pack
+        run: |
+          set -euo pipefail
+          tarball=$(npm pack --silent)
+          echo "tarball=${tarball}" >> "$GITHUB_OUTPUT"
+          sha256sum "$tarball"
+
+      - name: Attest build provenance (keyless Sigstore)
+        if: steps.gate.outputs.skip != 'true' && steps.bumped.outputs.skip != 'true'
+        id: attest
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-path: ${{ steps.pack.outputs.tarball }}
+
+      - name: Upload tarball + provenance bundle to the release
+        if: steps.gate.outputs.skip != 'true' && steps.bumped.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+          TARBALL: ${{ steps.pack.outputs.tarball }}
+          BUNDLE: ${{ steps.attest.outputs.bundle-path }}
+        run: |
+          set -euo pipefail
+          cp "$BUNDLE" "${TARBALL}.sigstore.json"
+          gh release upload "$TAG" --clobber "$TARBALL" "${TARBALL}.sigstore.json"
+
+      - name: Hand off to the OIDC publisher
+        if: steps.gate.outputs.skip != 'true' && steps.bumped.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run publish.yml --repo "${{ github.repository }}" --ref main
