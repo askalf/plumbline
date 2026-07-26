@@ -1,8 +1,10 @@
 # Detectors
 
-Seven deterministic detectors. Each is a pure function of `(events, envelope)` returning signals, so any of them can be re-run over a growing prefix for streaming use without changing its contract.
+Seven deterministic detectors, plus one optional model-backed detector. Each deterministic detector is a pure function of `(events, envelope)` returning signals, so any of them can be re-run over a growing prefix for streaming use without changing its contract.
 
 Six measure *drift* — departure from the declared envelope. The seventh, `metadata`, is a known-bad-target detector: it fires on the one address an escape almost always has to touch, independent of any envelope. That difference is the point — the drift detectors each have a threshold an attacker can tune under, and `metadata` does not.
+
+The eighth, **`semantic`**, is different in kind: it asks a local model whether each action serves the declared task, and it is the only thing that catches an escape composed entirely of in-envelope actions (the residual floor). It is opt-in, async, and out-of-band — the deterministic core stays pure and zero-dependency. Full method, honest scorecard, and the model-size floor: [docs/semantic-detector.md](docs/semantic-detector.md). The rest of this document covers the seven deterministic detectors.
 
 Every detector below documents what it catches, how severity is derived, how it can be wrong, and — most importantly — **what it cannot see.** A detector whose blind spots aren't written down invites false confidence.
 

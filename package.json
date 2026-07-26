@@ -9,7 +9,10 @@
     "./schema": "./src/schema.mjs",
     "./envelope": "./src/envelope.mjs",
     "./score": "./src/score.mjs",
-    "./detect": "./src/detect/index.mjs"
+    "./detect": "./src/detect/index.mjs",
+    "./reachability": "./src/reachability.mjs",
+    "./semantic": "./src/semantic.mjs",
+    "./judges/ollama": "./src/judges/ollama.mjs"
   },
   "bin": {
     "plumbline": "src/cli.mjs"
