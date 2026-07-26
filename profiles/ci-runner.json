@@ -1,0 +1,30 @@
+{
+  "name": "ci-runner",
+  "description": "An agent inside CI. Wider than an eval sandbox because it must fetch dependencies and talk to the forge, but it should never acquire cloud credentials it was not handed, and it should never reach a host outside the build's dependency set.",
+  "capabilities": [
+    "exec:local",
+    "proc:spawn",
+    "state:write",
+    "fs:read",
+    "fs:write",
+    "cloud:gh:actions"
+  ],
+  "egress": {
+    "allow": [
+      "registry.npmjs.org",
+      "pypi.org",
+      "files.pythonhosted.org",
+      ".github.com",
+      "github.com",
+      "codeload.github.com",
+      ".githubusercontent.com",
+      "ghcr.io",
+      ".docker.io"
+    ]
+  },
+  "budget": {
+    "max_distinct_hosts": 8,
+    "max_probe_ratio": 0.4,
+    "max_instances": 4
+  }
+}

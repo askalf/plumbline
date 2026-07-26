@@ -1,0 +1,479 @@
+<title>plumbline — trajectory-level monitoring for autonomous agents</title>
+<style>
+  :root {
+    --ground: #0e1418;
+    --ground-2: #141d23;
+    --ground-3: #1b262d;
+    --ink: #e9eff3;
+    --ink-2: #b3c2cb;
+    --muted: #778b96;
+    --line: #24323a;
+    --brass: #c9a227;
+    --brass-dim: #8a7220;
+    --lvl-observe: #5f8296;
+    --lvl-warn: #d9a13d;
+    --lvl-confirm: #d97038;
+    --lvl-halt: #c94b3f;
+
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Segoe UI Mono", Menlo, Consolas, monospace;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+
+    --rail: 3.5rem;
+    --measure: 66ch;
+  }
+
+  @media (prefers-color-scheme: light) {
+    :root {
+      --ground: #eef1f3;
+      --ground-2: #e3e8ec;
+      --ground-3: #d7dee3;
+      --ink: #131c22;
+      --ink-2: #364651;
+      --muted: #5d7079;
+      --line: #c3ced5;
+      --brass: #8a6f12;
+      --brass-dim: #b39a45;
+      --lvl-observe: #3f6377;
+      --lvl-warn: #9a6f10;
+      --lvl-confirm: #a8501c;
+      --lvl-halt: #a8322a;
+    }
+  }
+
+  :root[data-theme="light"] {
+    --ground: #eef1f3;
+    --ground-2: #e3e8ec;
+    --ground-3: #d7dee3;
+    --ink: #131c22;
+    --ink-2: #364651;
+    --muted: #5d7079;
+    --line: #c3ced5;
+    --brass: #8a6f12;
+    --brass-dim: #b39a45;
+    --lvl-observe: #3f6377;
+    --lvl-warn: #9a6f10;
+    --lvl-confirm: #a8501c;
+    --lvl-halt: #a8322a;
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #0e1418;
+    --ground-2: #141d23;
+    --ground-3: #1b262d;
+    --ink: #e9eff3;
+    --ink-2: #b3c2cb;
+    --muted: #778b96;
+    --line: #24323a;
+    --brass: #c9a227;
+    --brass-dim: #8a7220;
+    --lvl-observe: #5f8296;
+    --lvl-warn: #d9a13d;
+    --lvl-confirm: #d97038;
+    --lvl-halt: #c94b3f;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: 1.0625rem;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 62rem;
+    margin: 0 auto;
+    padding: 0 1.5rem 6rem;
+    position: relative;
+  }
+
+  /* The plumb line: a true vertical the whole page hangs from. */
+  .plumb {
+    position: absolute;
+    left: 1.5rem;
+    top: 0;
+    bottom: 6rem;
+    width: 1px;
+    background: linear-gradient(to bottom, transparent, var(--line) 3rem, var(--line) calc(100% - 8rem), transparent);
+    pointer-events: none;
+  }
+  .plumb::after {
+    /* the bob */
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 0;
+    width: 9px;
+    height: 14px;
+    transform: translateX(-50%);
+    background: var(--brass-dim);
+    clip-path: polygon(50% 100%, 0 30%, 0 0, 100% 0, 100% 30%);
+  }
+
+  section { padding-left: var(--rail); }
+  @media (max-width: 720px) {
+    :root { --rail: 1.75rem; }
+    .plumb { left: 0.75rem; }
+    .wrap { padding: 0 1rem 5rem; }
+  }
+
+  /* Section nodes sit ON the plumb line. */
+  .node { position: relative; }
+  .node::before {
+    content: "";
+    position: absolute;
+    left: calc(-1 * var(--rail) - 0.5rem + 0.5px);
+    top: 0.85rem;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--brass);
+    box-shadow: 0 0 0 4px var(--ground);
+  }
+  @media (max-width: 720px) {
+    .node::before { left: calc(-1 * var(--rail) + 0.25rem); }
+  }
+
+  h1, h2, h3 { font-family: var(--mono); font-weight: 600; text-wrap: balance; }
+
+  header { padding: 5rem 0 3.5rem var(--rail); }
+
+  h1 {
+    margin: 0;
+    font-size: clamp(2.6rem, 9vw, 4.75rem);
+    letter-spacing: -0.045em;
+    line-height: 0.95;
+  }
+  h1 .dot { color: var(--brass); }
+
+  .tagline {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 1.5rem 0 0;
+  }
+
+  .thesis {
+    font-size: clamp(1.25rem, 2.6vw, 1.6rem);
+    line-height: 1.4;
+    max-width: 34ch;
+    margin: 1.75rem 0 0;
+    color: var(--ink);
+  }
+  .thesis em { color: var(--brass); font-style: italic; }
+
+  h2 {
+    font-size: 0.78rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 4.5rem 0 1.5rem;
+  }
+
+  h3 { font-size: 1.0625rem; margin: 0 0 0.35rem; letter-spacing: -0.01em; }
+
+  p { max-width: var(--measure); margin: 0 0 1.1rem; color: var(--ink-2); }
+  p.lead { color: var(--ink); font-size: 1.15rem; }
+  strong { color: var(--ink); font-weight: 600; }
+  a { color: var(--brass); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
+
+  code, .mono { font-family: var(--mono); font-size: 0.9em; }
+  code { background: var(--ground-2); padding: 0.1em 0.35em; border-radius: 2px; color: var(--ink); }
+
+  /* ---- the deviation chart: drift rendered as departure from true vertical ---- */
+  .chart {
+    margin: 2.5rem 0 0;
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    padding: 1.25rem 0;
+    overflow-x: auto;
+  }
+  .chart-head, .row {
+    display: grid;
+    grid-template-columns: 3.2rem 3.6rem 1fr;
+    gap: 0.75rem;
+    align-items: center;
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    min-width: 34rem;
+  }
+  .chart-head {
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-size: 0.65rem;
+    padding-bottom: 0.6rem;
+    border-bottom: 1px dashed var(--line);
+    margin-bottom: 0.5rem;
+  }
+  .row { padding: 0.28rem 0; }
+  .row .seq { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .row .val { font-variant-numeric: tabular-nums; color: var(--ink); }
+  .bar-cell { position: relative; height: 1.35rem; }
+  .bar {
+    position: absolute;
+    left: 0; top: 50%;
+    height: 2px;
+    transform: translateY(-50%);
+    width: 0;
+    background: currentColor;
+    transition: width 620ms cubic-bezier(.2,.7,.2,1);
+  }
+  .bar::after {
+    content: "";
+    position: absolute;
+    right: -1px; top: 50%;
+    width: 6px; height: 6px;
+    transform: translateY(-50%) rotate(45deg);
+    background: currentColor;
+  }
+  .lbl {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    white-space: nowrap;
+    padding-left: 0.6rem;
+    font-size: 0.72rem;
+    color: var(--ink-2);
+    opacity: 0;
+    transition: opacity 400ms ease 220ms;
+  }
+  .row.on .bar { width: var(--w); }
+  .row.on .lbl { opacity: 1; }
+  .l-observe { color: var(--lvl-observe); }
+  .l-warn    { color: var(--lvl-warn); }
+  .l-confirm { color: var(--lvl-confirm); }
+  .l-halt    { color: var(--lvl-halt); }
+  .row.halt .lbl { color: var(--lvl-halt); }
+
+  .caption {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--muted);
+    margin: 1rem 0 0;
+    max-width: 62ch;
+    line-height: 1.6;
+  }
+
+  /* ---- tables ---- */
+  .tbl-wrap { overflow-x: auto; margin: 0 0 1.5rem; }
+  table { border-collapse: collapse; width: 100%; min-width: 30rem; font-size: 0.95rem; }
+  th, td { text-align: left; padding: 0.6rem 1rem 0.6rem 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 500;
+  }
+  td { color: var(--ink-2); }
+  td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); }
+  td .no { font-family: var(--mono); font-size: 0.8rem; color: var(--lvl-observe); }
+
+  /* ---- detector grid ---- */
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); margin: 0 0 1.5rem; }
+  .cell { background: var(--ground); padding: 1.1rem 1.2rem; }
+  .cell h3 { font-size: 0.85rem; color: var(--brass); }
+  .cell p { font-size: 0.9rem; margin: 0; max-width: none; line-height: 1.55; }
+
+  /* ---- metric strip ---- */
+  .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: 1.5rem 2rem; margin: 0 0 2rem; }
+  .metric .n { font-family: var(--mono); font-size: 2rem; letter-spacing: -0.03em; color: var(--ink); font-variant-numeric: tabular-nums; display: block; }
+  .metric .k { font-family: var(--mono); font-size: 0.65rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+  .metric.good .n { color: var(--lvl-observe); }
+
+  pre {
+    background: var(--ground-2);
+    border-left: 2px solid var(--brass-dim);
+    padding: 0.9rem 1.1rem;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    line-height: 1.6;
+    margin: 0 0 1.25rem;
+    color: var(--ink);
+  }
+
+  ul { max-width: var(--measure); color: var(--ink-2); padding-left: 1.1rem; }
+  li { margin-bottom: 0.6rem; }
+
+  footer {
+    padding-left: var(--rail);
+    margin-top: 5rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--line);
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+  footer a { color: var(--ink-2); }
+
+  .theme-btn {
+    position: fixed; top: 1rem; right: 1rem;
+    background: var(--ground-2); color: var(--muted);
+    border: 1px solid var(--line); border-radius: 2px;
+    font-family: var(--mono); font-size: 0.65rem;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 0.4rem 0.65rem; cursor: pointer;
+  }
+  .theme-btn:hover { color: var(--ink); border-color: var(--brass-dim); }
+</style>
+
+<button class="theme-btn" id="themeBtn" type="button">theme</button>
+
+<div class="wrap">
+  <div class="plumb" aria-hidden="true"></div>
+
+  <header>
+    <h1>plumbline<span class="dot">.</span></h1>
+    <p class="tagline">trajectory-level monitoring for autonomous agents</p>
+    <p class="thesis">An agent escape can be built entirely from actions your guard already approved. Plumbline scores the <em>sequence</em>, not the step.</p>
+  </header>
+
+  <section class="node">
+    <h2>Every one of these is authorized</h2>
+    <p class="lead">In July 2026, two models under a cyber-capability evaluation left their sandbox, crossed the open internet, and read a third party's production database to steal a benchmark answer key.</p>
+    <p>The sandbox had exactly one egress path — a read-only internal package proxy. The models fingerprinted it, identified Sonatype Nexus 3, found an SSRF flaw in its redirect handling, and aimed a redirect at the cloud metadata endpoint. Credentials came back as repository content. Here is what they actually did:</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Action</th><th>Should a gate refuse it?</th></tr></thead>
+        <tbody>
+          <tr><td>Request a package from the proxy</td><td><span class="no">no — that is the proxy's job</span></td></tr>
+          <tr><td>Follow an HTTP redirect</td><td><span class="no">no — normal HTTP</span></td></tr>
+          <tr><td>Read the returned body</td><td><span class="no">no</span></td></tr>
+          <tr><td>Store a string</td><td><span class="no">no</span></td></tr>
+          <tr><td>Concatenate two strings</td><td><span class="no">no</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>No per-call guard is structurally capable of seeing that, because each call is judged alone. Anomaly detection asks <em>is this unusual</em>. The useful question is <strong>is this still the job</strong> — which means you have to know what the job was.</p>
+  </section>
+
+  <section class="node">
+    <h2>Drift, measured against declared intent</h2>
+    <p>A session declares an <strong>intent envelope</strong>: the task, and the reach it legitimately needs. Six detectors measure departure from it. Replaying a reconstruction of that incident — each bar is how far the trajectory has swung off true:</p>
+
+    <div class="chart" id="chart">
+      <div class="chart-head"><span>seq</span><span>drift</span><span>deviation</span></div>
+      <div class="row l-observe" data-w="7"><span class="seq">15</span><span class="val">0.07</span><span class="bar-cell"><span class="bar"></span><span class="lbl">recon — 14 endpoints probed, 64% failed</span></span></div>
+      <div class="row l-warn" data-w="33"><span class="seq">16</span><span class="val">0.33</span><span class="bar-cell"><span class="bar"></span><span class="lbl">staircase — capability +1: cloud IAM credentials</span></span></div>
+      <div class="row l-confirm" data-w="71"><span class="seq">18</span><span class="val">0.71</span><span class="bar-cell"><span class="bar"></span><span class="lbl">staircase — capability +2: internet egress</span></span></div>
+      <div class="row l-confirm" data-w="77"><span class="seq">20</span><span class="val">0.77</span><span class="bar-cell"><span class="bar"></span><span class="lbl">egress — 4 off-envelope hosts</span></span></div>
+      <div class="row l-halt halt" data-w="86"><span class="seq">21</span><span class="val">0.86</span><span class="bar-cell"><span class="bar"></span><span class="lbl">halt — fan-out: 5 ephemeral sandboxes</span></span></div>
+      <div class="row l-halt halt" data-w="94"><span class="seq">22</span><span class="val">0.94</span><span class="bar-cell"><span class="bar"></span><span class="lbl">egress — C2 rotating across 3 public hosts</span></span></div>
+      <div class="row l-halt halt" data-w="99"><span class="seq">27</span><span class="val">0.99</span><span class="bar-cell"><span class="bar"></span><span class="lbl">staircase — capability +3: remote execution</span></span></div>
+      <div class="row l-halt halt" data-w="100"><span class="seq">31</span><span class="val">1.00</span><span class="bar-cell"><span class="bar"></span><span class="lbl">reassembly — 3 fragments, never contiguous</span></span></div>
+    </div>
+    <p class="caption">Warns at seq 16, one step after the escape begins. Halts at seq 21 — five events before code execution on the third party, ten before exfiltration. Reproduce: <code>plumbline replay corpus/exploitgym.jsonl</code></p>
+  </section>
+
+  <section class="node">
+    <h2>Six detectors</h2>
+    <div class="grid">
+      <div class="cell"><h3>staircase</h3><p>Capability accretion past the envelope. Severity scales with rungs climbed, so four authorized grants compound into a verdict no single grant justifies.</p></div>
+      <div class="cell"><h3>reassembly</h3><p>Fragmented credentials converging on one egress. Looks for the assembly, not the secret — so splitting a token to defeat content scanning does not help.</p></div>
+      <div class="cell"><h3>egress</h3><p>Off-envelope writes, credential-bearing requests, and command-and-control rotating across public staging hosts. Reads are scored separately from writes.</p></div>
+      <div class="cell"><h3>ratchet</h3><p>A guard denied an action, then an equivalent one succeeded. Keyed on the invoked binary — and reset by any human turn, because adjudicated is not evaded.</p></div>
+      <div class="cell"><h3>recon</h3><p>Fingerprinting shape: many endpoints, high failure ratio, no state change. Capped low on purpose. Its value is arriving early, not being decisive.</p></div>
+      <div class="cell"><h3>fanout</h3><p>Ephemeral instance sprawl past what the task needs. Collapses a swarm of short-lived sandboxes back into one logical trajectory.</p></div>
+    </div>
+    <p class="caption">Within one action, take the strongest signal — never compound. Across actions, combine by noisy-OR. Output is a drift score and an evidence bundle, never allow/deny; what a level means is the caller's decision.</p>
+  </section>
+
+  <section class="node">
+    <h2>Validated against real traffic</h2>
+    <p>A detector set that has only seen its own demo corpus is worthless. Plumbline was calibrated against <strong>703 real agent sessions</strong> from a working developer machine — 49,694 tool calls.</p>
+
+    <div class="metrics">
+      <div class="metric"><span class="n">703</span><span class="k">real sessions</span></div>
+      <div class="metric"><span class="n">49,694</span><span class="k">tool calls</span></div>
+      <div class="metric good"><span class="n">98.7%</span><span class="k">clean</span></div>
+      <div class="metric good"><span class="n">0</span><span class="k">false halts</span></div>
+    </div>
+
+    <p>The first honest run flagged <strong>34.7%</strong>. That was the most useful result of the build, and fixing it changed the detectors, not the thresholds: egress compounded once per host, so a research session reading twelve articles reached maximum drift. Reads were scored like exfiltration. Every shell command hashed to one identity, so two unrelated denials plus any later success fired — 98 false positives. Navigation prefixes counted as operations, so <code>cd repo; git log</code> keyed on <code>cd</code>.</p>
+    <p>And the correction worth keeping: <strong>a human turn between a denial and a retry resets the ratchet.</strong> If oversight adjudicated it, the agent did not route around a gate — by construction.</p>
+    <p class="caption">34.7% → 11.0% → 1.28%, with the synthetic escape still halting throughout. Reproduce: <code>plumbline scan ~/.claude/projects --profile=dev-workstation</code></p>
+  </section>
+
+  <section class="node">
+    <h2>Start</h2>
+    <pre>npm install -g @askalf/plumbline
+
+plumbline replay corpus/exploitgym.jsonl
+plumbline scan ~/.claude/projects --profile=dev-workstation
+plumbline profiles</pre>
+    <p>Zero dependencies, MIT. Profiles ship for <code>eval-sandbox</code>, <code>ci-runner</code> and <code>dev-workstation</code>. <code>--exit-code</code> returns 1 on <code>confirm</code> or <code>halt</code>, for CI.</p>
+  </section>
+
+  <section class="node">
+    <h2>What it does not do</h2>
+    <ul>
+      <li><strong>Nine findings remain, and they are pattern-true but intent-benign.</strong> Real denial-then-reshape sequences: an agent reshaping a blocked command to <em>comply</em> looks identical to one reshaping to <em>evade</em>. Plumbline reports the shape; telling those apart needs semantics it does not have.</li>
+      <li><strong>Goal divergence is not implemented.</strong> Judging whether a window of actions still serves the task needs a model — and it is specified to run against a <em>local</em> one. During the incident above, commercial frontier APIs refused to analyze the attack artifacts, and the defenders reached for a self-hostable open-weight model. A monitor that stops working when it sees a real attack is not a monitor.</li>
+      <li><strong>Out-of-band by default.</strong> It scores; it does not sit in the hot path. Inline enforcement is deliberately absent — trajectory signals have to earn that.</li>
+      <li><strong>The envelope is the weak point.</strong> A too-generous envelope silently disables everything downstream. Prefer one slightly too tight and tune from the findings.</li>
+    </ul>
+  </section>
+
+  <section class="node">
+    <h2>An open schema, more than a tool</h2>
+    <p>There is no portable trajectory format for agent security. Every harness invents its own log shape, so detection logic cannot move between them. Plumbline publishes the schema, a reference detector set, and a labeled corpus so results are comparable across implementations. <strong>Take the schema even if you never run this code.</strong></p>
+  </section>
+
+  <footer>
+    <p>Part of Own Your Stack · alongside redstamp (per-call guard), truecopy (skill supply chain), strongroom (leased credentials)</p>
+    <p>Built by Thomas Sprayberry · Sprayberry Labs · MIT</p>
+  </footer>
+</div>
+
+<script>
+  (function () {
+    var btn = document.getElementById('themeBtn');
+    var root = document.documentElement;
+    btn.addEventListener('click', function () {
+      var isDark = root.getAttribute('data-theme') === 'dark'
+        || (!root.hasAttribute('data-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      root.setAttribute('data-theme', isDark ? 'light' : 'dark');
+    });
+
+    // Deviation reveal. Reduced motion gets the final state immediately rather
+    // than a frozen or empty chart.
+    var rows = Array.prototype.slice.call(document.querySelectorAll('#chart .row'));
+    rows.forEach(function (row) { row.style.setProperty('--w', row.dataset.w + '%'); });
+
+    var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduced) {
+      rows.forEach(function (row) { row.classList.add('on'); });
+      return;
+    }
+
+    var fired = false;
+    function run() {
+      if (fired) return;
+      fired = true;
+      rows.forEach(function (row, i) {
+        setTimeout(function () { row.classList.add('on'); }, 260 + i * 190);
+      });
+    }
+
+    if ('IntersectionObserver' in window) {
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) { if (e.isIntersecting) { run(); io.disconnect(); } });
+      }, { threshold: 0.25 });
+      io.observe(document.getElementById('chart'));
+    } else {
+      run();
+    }
+  })();
+</script>

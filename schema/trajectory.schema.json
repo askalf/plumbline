@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://plumbline.dev/schema/trajectory/v1",
+  "title": "Plumbline Trajectory Event",
+  "description": "One line of a trajectory stream (JSONL). A trajectory is an ordered sequence of these events for a single logical agent session. The first event SHOULD be a session.declare carrying the intent envelope; without it, drift is measured against an inferred envelope and every capability reads as off-envelope.",
+  "type": "object",
+  "required": ["v", "session", "seq", "action"],
+  "additionalProperties": false,
+  "properties": {
+    "v": {
+      "const": 1,
+      "description": "Schema version."
+    },
+    "session": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Stable identifier for the logical agent session."
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Monotonic position within the session. Gaps are allowed; order is authoritative."
+    },
+    "ts": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the action occurred."
+    },
+    "actor": {
+      "type": "string",
+      "description": "Logical agent identity. Ephemeral instances of one agent share an actor."
+    },
+    "instance": {
+      "type": "string",
+      "description": "Ephemeral compute identity (sandbox, container, subprocess). Used to correlate a swarm back into one trajectory."
+    },
+    "action": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+      "description": "Dotted verb, e.g. http.request, fs.read, proc.spawn, cred.acquire, session.declare."
+    },
+    "target": {
+      "type": "object",
+      "description": "What the action addressed.",
+      "additionalProperties": true,
+      "properties": {
+        "host": { "type": "string" },
+        "path": { "type": "string" },
+        "external": {
+          "type": "boolean",
+          "description": "True when the host is outside the trust boundary. Adapters set this; plumbline does not resolve DNS."
+        }
+      }
+    },
+    "outcome": {
+      "enum": ["ok", "error", "denied"],
+      "description": "denied means a guard refused the action — the input to ratchet detection."
+    },
+    "status": {
+      "type": "integer",
+      "description": "Protocol status where meaningful (HTTP code, exit code)."
+    },
+    "bytes_in": { "type": "integer", "minimum": 0 },
+    "bytes_out": { "type": "integer", "minimum": 0 },
+    "capability_grant": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Capabilities the agent newly HOLDS after this action, in scheme:value form (net:host, cloud:iam:role, fs:/path, exec:remote). This is the capability-staircase input."
+    },
+    "produces": {
+      "type": "array",
+      "description": "Values that entered the agent's possession. Carries measurements only — never the value itself, so plumbline never holds a secret.",
+      "items": {
+        "type": "object",
+        "required": ["id"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "description": "Opaque fragment identifier." },
+          "len": { "type": "integer", "minimum": 0 },
+          "entropy": {
+            "type": "number",
+            "description": "Shannon entropy in bits/char, as measured by the adapter."
+          }
+        }
+      }
+    },
+    "consumes": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Fragment ids used by this action. An egress action consuming multiple separately-produced fragments is the reassembly signal."
+    },
+    "envelope": {
+      "$ref": "#/$defs/envelope",
+      "description": "Present only on session.declare."
+    },
+    "note": {
+      "type": "string",
+      "description": "Human annotation. Never parsed for signal."
+    }
+  },
+  "$defs": {
+    "envelope": {
+      "type": "object",
+      "title": "Intent Envelope",
+      "description": "The declared job and the reach it legitimately requires. Drift is measured against this.",
+      "required": ["task"],
+      "additionalProperties": false,
+      "properties": {
+        "task": {
+          "type": "string",
+          "description": "What the agent was asked to do, in one sentence."
+        },
+        "capabilities": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Capabilities the task legitimately needs. Supports trailing wildcards: fs:/workspace/*."
+        },
+        "egress": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "allow": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Hosts the task may contact. Leading-dot entries match subdomains."
+            }
+          }
+        },
+        "budget": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "max_distinct_hosts": { "type": "integer", "minimum": 1 },
+            "max_probe_ratio": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "description": "Tolerated failed-probe fraction before recon scoring engages."
+            },
+            "max_instances": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Expected ephemeral instance count for this task."
+            }
+          }
+        }
+      }
+    }
+  }
+}

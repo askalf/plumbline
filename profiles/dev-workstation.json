@@ -1,0 +1,47 @@
+{
+  "name": "dev-workstation",
+  "description": "A research-capable coding agent on a developer machine. Local execution and the project tree are expected. Egress mode is open_read: reading arbitrary pages is the job, so unlisted hosts are noted but not treated as drift; WRITES and credential-bearing requests must be to a listed host. Calibrated against 380 real sessions.",
+  "capabilities": [
+    "exec:local",
+    "proc:spawn",
+    "state:write",
+    "fs:read",
+    "fs:write"
+  ],
+  "egress": {
+    "mode": "open_read",
+    "allow": [
+      "registry.npmjs.org",
+      "registry.yarnpkg.com",
+      "pypi.org",
+      "files.pythonhosted.org",
+      "crates.io",
+      "static.crates.io",
+      "proxy.golang.org",
+      "sum.golang.org",
+      ".github.com",
+      "github.com",
+      "codeload.github.com",
+      "objects.githubusercontent.com",
+      ".githubusercontent.com",
+      ".gitlab.com",
+      ".docker.io",
+      ".docker.com",
+      "ghcr.io",
+      "search.provider",
+      ".anthropic.com",
+      ".claude.com",
+      ".readthedocs.io",
+      ".mozilla.org",
+      ".npmjs.com",
+      ".nodejs.org",
+      ".shields.io",
+      ".openssf.org"
+    ]
+  },
+  "budget": {
+    "max_distinct_hosts": 15,
+    "max_probe_ratio": 0.6,
+    "max_instances": 40
+  }
+}
