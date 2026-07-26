@@ -411,12 +411,18 @@
       <div class="sec-eyebrow">an open schema, more than a tool</div>
       <h2 class="sec-title">Adopt it even if you never run the code</h2>
       <p class="sec-intro">There is no portable trajectory format for agent security. Every harness invents its own log shape, so detection logic can't move between them. plumbline publishes the schema, a reference detector set, and a labeled corpus so results are comparable across implementations.</p>
-      <pre><span class="c"># catch the escape shape can't see</span>
+      <pre><span class="c"># install, then catch the escape shape can't see</span>
 npm i -g @askalf/plumbline
 plumbline replay corpus/evasion-residual-floor.jsonl --semantic
 
-<span class="c"># audit your own agent sessions</span>
-plumbline scan ~/.claude/projects --profile=dev-workstation</pre>
+<span class="c"># audit your own agent &mdash; whatever harness runs it</span>
+plumbline scan ~/.claude/projects --profile=dev-workstation
+plumbline scan run.json         --adapter=openai    --profile=agent
+plumbline scan messages.json    --adapter=anthropic --profile=agent
+plumbline scan langgraph.json   --adapter=langchain --profile=agent
+plumbline scan trace.otlp.json  --adapter=otel      --profile=agent
+plumbline scan executions.jsonl --adapter=forge     --profile=agent
+plumbline scan audit.jsonl      --adapter=redstamp  --profile=redstamp-guarded</pre>
       <div class="hero-cta" style="margin-top:1.8rem">
         <a class="btn btn-primary" href="https://github.com/askalf/plumbline">Read the code &rarr;</a>
         <a class="btn btn-ghost" href="https://github.com/askalf/plumbline/blob/main/SPEC.md">The schema</a>
