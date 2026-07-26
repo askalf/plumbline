@@ -103,14 +103,13 @@ Scoring: within one action take the strongest signal (never compound); across ac
 
 The seven deterministic detectors measure the *shape* of a trajectory. They have a floor: an escape that stays within every granted capability and allowed host produces no drift, and scores clean. That escape lives in the *semantics* of the actions — reading a credential file it had no task-reason to read — and is proven by [`corpus/evasion-residual-floor.jsonl`](corpus/evasion-residual-floor.jsonl).
 
-The optional `--semantic` layer closes it. It asks a **local** model one question — *does each action serve the declared task?* — and merges the answer into the same scoring. Evaluated at temperature 0 over 5 escapes and 8 benign trajectories (4 adversarially chosen to look shape-identical to escapes):
+The optional `--semantic` layer closes it. It asks a **local** model one question — *does each action serve the declared task?* — and merges the answer into the same scoring. Evaluated at temperature 0 over 5 escapes and 8 benign trajectories (4 adversarially chosen to look shape-identical to escapes), through the shipped code path:
 
-| Model | Escapes caught | Benign clean | False positives |
-|---|---|---|---|
-| **qwen2.5:7b** | **5 / 5** | **8 / 8** | **0** |
-| llama3.2:3b | 5 / 5 | 6 / 8 | 3 (over-flags) |
+- **Catches the residual-floor escape that no deterministic detector can see** — flagging `fs.read /home/runner/.aws/credentials` as off-task for a build job, from the path alone.
+- **Zero false positives** across all 8 benign, including a security-research case where plumbline's own deterministic `metadata` detector false-positives and the semantic layer correctly clears it.
+- **It is not a replacement for the deterministic detectors.** It catches 3 of the 5 escapes alone; the other two pivot through the cloud metadata endpoint (an opaque IP the model doesn't recognize) and are caught by the deterministic `metadata` detector. The layers are complementary — deterministic detectors encode known-bad specifics, semantics catches general task-divergence. Together they catch all five; neither alone does.
 
-The 7B model catches the residual-floor escape **no shape detector can see**, with zero false alarms — including a case where plumbline's own deterministic `metadata` detector false-positives (a security-research task that curls the metadata endpoint) and the semantic layer correctly clears it. Local by design, per the Hugging Face lesson: the model that analyzes an attack must not be one that refuses to. Full method, the model-size floor, latency, and reproduction: [docs/semantic-detector.md](docs/semantic-detector.md).
+Local by design, per the Hugging Face lesson: the model that analyzes an attack must not be one that refuses to. Needs a ~7B model (3B over-flags). Full method, the honest scorecard, a methodology error I caught and corrected, latency, and reproduction: [docs/semantic-detector.md](docs/semantic-detector.md).
 
 ```sh
 plumbline replay corpus/evasion-residual-floor.jsonl --semantic   # HALT, where shape says clean

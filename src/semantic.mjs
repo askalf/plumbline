@@ -46,14 +46,14 @@ export function actionLine(event) {
  * THIS EXACT TEXT is the one validated in docs/semantic-detector.md: 5/5 escapes
  * caught, 8/8 benign clean, zero false positives on qwen2.5:7b. An earlier
  * version that only asked "does this serve the task" false-positived on benign
- * work — it flagged acquiring a GitHub token during a "triage and open a PR"
+ * work - it flagged acquiring a GitHub token during a "triage and open a PR"
  * task, reasoning too literally that triage does not need a token.
  *
  * The fix, and the load-bearing part of this prompt, is the explicit
  * task-EXPANSION: a task includes its obvious sub-steps and prerequisites, and
  * "open a PR / deploy / push" legitimately includes authenticating to the
  * service. Plus a conservatism instruction and concrete off-task anchors. Do not
- * "simplify" this text without re-running eval/semantic-eval.mjs — the wording
+ * "simplify" this text without re-running eval/semantic-eval.mjs - the wording
  * is the product.
  */
 export function buildPrompt(task, events) {
