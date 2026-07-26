@@ -120,6 +120,40 @@ Thresholds ladder `observe → warn (0.25) → confirm (0.5) → halt (0.85)`. O
 
 ---
 
+## Reachability — read this before trusting any clean result
+
+Every detector above depends on specific event fields. If nothing feeds one, it reports nothing, and **a clean report from a starved detector is indistinguishable from a clean report from a working one.** This project shipped that bug three times before fixing it structurally.
+
+`src/reachability.mjs` declares each detector's dependencies in three kinds, because they fail differently:
+
+| Kind | Meaning | Risk |
+|---|---|---|
+| `requires` | Absent, the detector **cannot fire at all** | False clean |
+| `unlocks` | Absent, some branches cannot fire | Partial coverage |
+| `calibratedBy` | Present-but-absent changes calibration, usually over-reporting | False positives |
+
+| Detector | requires | unlocks | calibratedBy |
+|---|---|---|---|
+| `staircase` | `capability_grant` | — | — |
+| `reassembly` | `produces` + `consumes` | — | — |
+| `egress` | `target.external` | `bytes_out`, `consumes` | — |
+| `ratchet` | `outcome:denied` | — | `session.turn` |
+| `recon` | `target.host` | — | — |
+| `fanout` | `instance` | — | — |
+
+Reachability is computed from the events actually present and attached to **every** verdict as `report.reachability`. The field that matters is `trustworthy`: false means a clean result is *unproven*, not safe.
+
+### Blind spot versus unexercised corpus
+
+An absent field has two very different causes, and conflating them is dishonest:
+
+- **The corpus lacks that activity.** Most sessions contain no credential reuse, no denials, no subagents. `reassembly` reaching only 1% of sessions is the detector correctly reporting that credential reuse is rare. **Expected, not a defect.**
+- **The adapter cannot express it.** Then the detector is dead for *every* corpus read through that adapter, permanently, and no additional data fixes it. **A defect**, and it must be declared up front in `ADAPTER_CAPABILITIES` rather than discovered from a suspiciously clean report.
+
+Currently declared: the forge adapter cannot emit `outcome: "denied"`, because forge execution records carry `tool_calls` without per-call outcomes — so `ratchet` is structurally dead there and says so on every run.
+
+CI enforces that every adapter on disk has a declaration, enumerated **from the filesystem** rather than from the declaration map — a hardcoded list would reintroduce the same circularity that let the original liveness guard pass while a detector was missing.
+
 ## Tuning
 
 Start from a profile that is slightly **too tight** and loosen from the findings. The opposite direction fails silently: a generous envelope produces a clean report that is indistinguishable from a broken detector.

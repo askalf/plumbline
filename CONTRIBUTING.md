@@ -60,15 +60,49 @@ Both are easy to skip and both silently disable a detector.
 
 `produces` takes `{id, len, entropy}` — measurements only. Your adapter has the real value; compute `entropyOf(value)` and emit the measurement. plumbline never holds a secret, which is a property worth preserving.
 
+### 5. Declare what your adapter cannot express — this is enforced
+
+Add an entry to `ADAPTER_CAPABILITIES` in `src/reachability.mjs`. CI enumerates `src/adapters/*.mjs` **from the filesystem** and fails if any adapter lacks one.
+
+```js
+'your-harness': {
+  emits: Object.values(FIELDS).filter((f) => f !== FIELDS.DENIED),
+  blind: [{
+    field: FIELDS.DENIED,
+    detectors: ['ratchet'],
+    reason: 'this harness logs tool calls without outcomes, so a refused call '
+      + 'is indistinguishable from a successful one',
+  }],
+},
+```
+
+This is what lets plumbline distinguish *"this corpus contains no denials"* (fine) from *"this adapter can never see denials"* (a permanent blind spot). Without it, every corpus your adapter produces reports clean with unknown gaps behind the number.
+
+Be honest here. An over-claimed `emits` list is worse than an admitted blind spot, because it converts a known limitation into a silent one.
+
 ### Verify your adapter
 
-Score a corpus you *expect to fail* — a permissive envelope produces a clean report whether or not your adapter works:
+Two checks, and the second is the one people skip.
+
+**Score a corpus you expect to fail.** A permissive envelope produces a clean report whether or not your adapter works:
 
 ```sh
 node src/cli.mjs scan <your-dump> --adapter=<yours> --profile=eval-sandbox
 ```
 
 If that comes back clean on non-trivial traffic, your adapter is probably not emitting `capability_grant`.
+
+**Check reachability.** The scan output names any detector no session could feed:
+
+```
+  *** ADAPTER BLIND SPOT - THE CLEAN RATE DOES NOT COVER THESE ***
+  not exercised    reassembly - this corpus contains no such activity
+  detector coverage
+    staircase     828  sessions (100%)
+    ...
+```
+
+A detector at 0% coverage that you did **not** declare as blind is a bug in your adapter, not a property of the data.
 
 ## Adding a detector
 

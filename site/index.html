@@ -429,6 +429,26 @@
 
     <p>Identical inputs, opposite verdicts, decided entirely by the declared envelope. This is also the clearest demonstration of the limitation below: a too-generous envelope silently disables everything downstream.</p>
 
+    <h3 style="margin-top:2.5rem">What a clean rate does not cover</h3>
+    <p>A clean result and a dead detector are indistinguishable from the outside. So plumbline computes <strong>reachability</strong> - which detectors could have fired at all - and attaches it to every verdict. A percentage without its coverage is not a safety claim.</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Detector</th><th>Claude Code (710)</th><th>Forge (828)</th></tr></thead>
+        <tbody>
+          <tr><td><code>staircase</code></td><td class="num">46%</td><td class="num">100%</td></tr>
+          <tr><td><code>recon</code></td><td class="num">22%</td><td class="num">54%</td></tr>
+          <tr><td><code>egress</code></td><td class="num">22%</td><td class="num">18%</td></tr>
+          <tr><td><code>ratchet</code></td><td class="num">18%</td><td class="num">adapter blind spot</td></tr>
+          <tr><td><code>fanout</code></td><td class="num">5%</td><td class="num">3%</td></tr>
+          <tr><td><code>reassembly</code></td><td class="num">1%</td><td class="num">not exercised</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>Two different things sit in that table. <strong>Low coverage is normal</strong> - most sessions contain no credential reuse, no denials and no subagents, so <code>reassembly</code> at 1% is the detector correctly reporting that credential reuse is rare. <strong>An adapter blind spot is a defect</strong> - forge execution records carry tool calls without per-call outcomes, so <code>ratchet</code> is dead for every corpus read through that adapter, permanently. It is declared up front rather than discovered from a suspiciously clean report.</p>
+    <p class="caption">0 of 1,586 sessions could feed all six detectors. Every clean verdict here is partial, and the tool says so on every run.</p>
+
     <p>The first honest run flagged <strong>34.7%</strong>. That was the most useful result of the build, and fixing it changed the detectors, not the thresholds: egress compounded once per host, so a research session reading twelve articles reached maximum drift. Reads were scored like exfiltration. Every shell command hashed to one identity, so two unrelated denials plus any later success fired - 98 false positives. Navigation prefixes counted as operations, so <code>cd repo; git log</code> keyed on <code>cd</code>.</p>
     <p>And the correction worth keeping: <strong>a human turn between a denial and a retry resets the ratchet.</strong> If oversight adjudicated it, the agent did not route around a gate - by construction.</p>
     <p>But the one that mattered most was caught by the control above. Capability accretion - the primary detector - reads a single field that <em>neither adapter emitted</em>. It had been completely inert on real traffic, firing only on the hand-authored corpus. Every clean number was measured with the most important detector switched off. The rates survived the fix; they just mean something now.</p>

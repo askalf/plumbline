@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import {
@@ -129,10 +129,39 @@ test('the exercise corpus feeds everything except what it deliberately omits', (
   assert.ok(!report.reachability.starved.includes('fanout'));
 });
 
-test('adapter capabilities are declared for every shipped adapter', () => {
-  for (const id of ['claude-code', 'forge']) {
-    assert.ok(ADAPTER_CAPABILITIES[id], `no capability declaration for adapter "${id}"`);
-    assert.ok(Array.isArray(ADAPTER_CAPABILITIES[id].emits));
+test('every adapter on disk has a capability declaration', () => {
+  // Enumerated from the filesystem, deliberately NOT from ADAPTER_CAPABILITIES.
+  // A hardcoded list here would be the same circularity that let the liveness
+  // guard pass while a detector was missing: a new adapter could ship with no
+  // declaration, and every corpus it produced would report clean with unknown
+  // blind spots.
+  const dir = join(here, '..', 'src', 'adapters');
+  const adapters = readdirSync(dir)
+    .filter((f) => f.endsWith('.mjs'))
+    .map((f) => f.replace(/\.mjs$/, ''));
+
+  assert.ok(adapters.length > 0, 'no adapters found - check the path');
+
+  const undeclared = adapters.filter((id) => !ADAPTER_CAPABILITIES[id]);
+  assert.deepEqual(
+    undeclared,
+    [],
+    `these adapters have no ADAPTER_CAPABILITIES entry: ${undeclared.join(', ')}. ` +
+      'Without one, plumbline cannot tell an adapter blind spot from an unexercised corpus, ' +
+      'and will report clean without knowing what it could not see.',
+  );
+
+  for (const id of adapters) {
+    assert.ok(Array.isArray(ADAPTER_CAPABILITIES[id].emits), `${id}.emits must be an array`);
+    assert.ok(Array.isArray(ADAPTER_CAPABILITIES[id].blind), `${id}.blind must be an array`);
+    // A declared blind field must not also be claimed as emitted.
+    for (const b of ADAPTER_CAPABILITIES[id].blind) {
+      assert.ok(
+        !ADAPTER_CAPABILITIES[id].emits.includes(b.field),
+        `${id} declares "${b.field}" as both emitted and blind`,
+      );
+      assert.ok(b.reason && b.reason.length > 20, `${id} blind spot "${b.field}" needs a real reason`);
+    }
   }
 });
 
