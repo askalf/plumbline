@@ -54,7 +54,12 @@ jobs:
           echo "zone $ZONE -> ${zid:-NOT FOUND}"
 
           rid=$(curl -s "$api/zones/$zid/dns_records?type=CNAME&name=$HOST" "${auth[@]}" | jq -r '.result[0].id // empty')
-          body="{\"type\":\"CNAME\",\"name\":\"$HOST\",\"content\":\"plumbline.pages.dev\",\"proxied\":true}"
+          # CF suffixes the project subdomain (e.g. plumbline-9rm.pages.dev) when
+          # plumbline.pages.dev is already taken globally, so read the real one.
+          sub=$(curl -s "$api/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/plumbline" "${auth[@]}" | jq -r '.result.subdomain // empty')
+          [ -z "$sub" ] && sub="plumbline.pages.dev"
+          echo "pages subdomain -> $sub"
+          body="{\"type\":\"CNAME\",\"name\":\"$HOST\",\"content\":\"$sub\",\"proxied\":true}"
           if [ -n "$rid" ]; then
             echo "updating existing CNAME $rid"
             curl -s -X PATCH "$api/zones/$zid/dns_records/$rid" "${auth[@]}" --data "$body" | jq -r '"dns success=\(.success)"'
