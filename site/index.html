@@ -403,7 +403,7 @@
 
     <p>The first honest run flagged <strong>34.7%</strong>. That was the most useful result of the build, and fixing it changed the detectors, not the thresholds: egress compounded once per host, so a research session reading twelve articles reached maximum drift. Reads were scored like exfiltration. Every shell command hashed to one identity, so two unrelated denials plus any later success fired - 98 false positives. Navigation prefixes counted as operations, so <code>cd repo; git log</code> keyed on <code>cd</code>.</p>
     <p>And the correction worth keeping: <strong>a human turn between a denial and a retry resets the ratchet.</strong> If oversight adjudicated it, the agent did not route around a gate - by construction.</p>
-    <p class="caption">34.7% ->' 11.0% ->' 1.28%, with the synthetic escape still halting throughout. Reproduce: <code>plumbline scan ~/.claude/projects --profile=dev-workstation</code></p>
+    <p class="caption">34.7% -&gt; 11.0% -&gt; 1.28%, with the synthetic escape still halting throughout. And the control that mattered most: the same 828 forge trajectories score 100% clean under their own envelope and 0% clean under an eval-sandbox envelope, which is how you prove a detector is live rather than dead. Reproduce: <code>plumbline scan ~/.claude/projects --profile=dev-workstation</code></p>
   </section>
 
   <section class="node">
