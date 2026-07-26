@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { normalizeEvent } from './schema.mjs';
 import { assess } from './index.mjs';
 import { readTranscript, declareFor } from './adapters/claude-code.mjs';
+import { readExecutions } from './adapters/forge.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -99,6 +100,49 @@ export async function scanTranscript(path, profile, { thresholds } = {}) {
       severity: s.severity,
     })),
   };
+}
+
+/**
+ * Scan a dumped forge executions JSONL file.
+ *
+ * One file, many sessions — the inverse of the Claude Code layout, which is why
+ * this gets its own entry point rather than being folded into collectTranscripts.
+ */
+export async function scanForgeDump(file, profile, { limit = Infinity, thresholds } = {}) {
+  const trajectories = await readExecutions(file, profile);
+  const results = [];
+  const skipped = [];
+
+  for (const t of trajectories.slice(0, limit === Infinity ? undefined : limit)) {
+    try {
+      const normalized = t.events.map((e, i) => normalizeEvent(e, { line: i + 1 }));
+      const report = assess(normalized, { thresholds });
+      results.push({
+        path: file,
+        session: t.session,
+        task: t.task,
+        cwd: null,
+        agent: t.agent,
+        tool_calls: t.tool_calls,
+        tools: {},
+        level: report.level,
+        drift: report.drift,
+        crossings: report.crossings,
+        earliest_actionable: report.earliest_actionable,
+        signals: report.signals.map((s) => ({
+          detector: s.detector,
+          seq: s.seq,
+          label: s.label,
+          detail: s.detail ?? null,
+          severity: s.severity,
+        })),
+      });
+    } catch (err) {
+      skipped.push({ path: `${file}#${t.session}`, reason: err.message });
+    }
+  }
+
+  return { results, skipped, scanned: trajectories.length, profile: profile.name ?? 'custom' };
 }
 
 /** Scan a directory tree of transcripts. */

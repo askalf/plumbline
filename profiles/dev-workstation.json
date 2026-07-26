@@ -4,9 +4,13 @@
   "capabilities": [
     "exec:local",
     "proc:spawn",
+    "state:read",
     "state:write",
     "fs:read",
-    "fs:write"
+    "fs:write",
+    "net:egress:read",
+    "agent:spawn",
+    "mcp:call"
   ],
   "egress": {
     "mode": "open_read",

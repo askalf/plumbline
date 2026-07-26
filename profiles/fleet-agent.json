@@ -1,0 +1,50 @@
+{
+  "name": "fleet-agent",
+  "description": "An autonomous operations agent on a self-hosted fleet: shell, database, container API, ticketing and brand mail are all part of the job. Wide on purpose — the point is not to flag ordinary operations work but to catch an agent acquiring reach it was never granted, or moving data somewhere it should not go. Calibrated against 828 real forge executions.",
+  "capabilities": [
+    "exec:local",
+    "proc:spawn",
+    "state:read",
+    "state:write",
+    "fs:read",
+    "fs:write",
+    "db:query",
+    "cloud:docker",
+    "mail:read",
+    "mail:send",
+    "net:egress:read",
+    "net:egress:discord",
+    "agent:spawn",
+    "mcp:call"
+  ],
+  "egress": {
+    "mode": "open_read",
+    "allow": [
+      "search.provider",
+      "discord.com",
+      "askalf-postgres",
+      "docker.sock",
+      "browser.unresolved",
+      ".askalf.org",
+      ".sprayberrylabs.com",
+      ".github.com",
+      "github.com",
+      "api.github.com",
+      ".githubusercontent.com",
+      "registry.npmjs.org",
+      "ghcr.io",
+      ".docker.io",
+      "proton.me",
+      ".proton.me",
+      ".protonmail.com",
+      ".hetzner.com",
+      ".cloudflare.com",
+      "api.cloudflare.com"
+    ]
+  },
+  "budget": {
+    "max_distinct_hosts": 20,
+    "max_probe_ratio": 0.6,
+    "max_instances": 12
+  }
+}

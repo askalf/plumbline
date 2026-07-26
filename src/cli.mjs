@@ -9,7 +9,7 @@
 
 import { readFileSync } from 'node:fs';
 import { assessTrajectory, DETECTOR_IDS, TrajectoryError } from './index.mjs';
-import { loadProfile, listProfiles, scanCorpus, summarize } from './scan.mjs';
+import { loadProfile, listProfiles, scanCorpus, scanForgeDump, summarize } from './scan.mjs';
 
 const USAGE = `plumbline - trajectory-level monitoring for autonomous agents
 
@@ -25,7 +25,8 @@ Options:
   --evidence        Print the evidence bundle for every signal
   --only=a,b        Run only the named detectors
   --profile=NAME    Envelope profile for scan (${listProfiles().join(', ')})
-  --limit=N         Stop after N transcripts (scan only)
+  --adapter=NAME    claude-code (default) | forge
+  --limit=N         Stop after N sessions (scan only)
   --quiet           Timeline only, no header or verdict
   --exit-code       Exit 1 when the verdict is confirm or halt (for CI)
   -h, --help        Show this message
@@ -36,7 +37,7 @@ Detectors: ${DETECTOR_IDS.join(', ')}
 function parseArgs(argv) {
   const opts = {
     json: false, evidence: false, only: null, quiet: false,
-    exitCode: false, profile: null, limit: Infinity,
+    exitCode: false, profile: null, limit: Infinity, adapter: 'claude-code',
   };
   const positional = [];
   for (const arg of argv) {
@@ -47,6 +48,7 @@ function parseArgs(argv) {
     else if (arg === '-h' || arg === '--help') opts.help = true;
     else if (arg.startsWith('--only=')) opts.only = arg.slice(7).split(',').map((s) => s.trim()).filter(Boolean);
     else if (arg.startsWith('--profile=')) opts.profile = arg.slice(10);
+    else if (arg.startsWith('--adapter=')) opts.adapter = arg.slice(10);
     else if (arg.startsWith('--limit=')) opts.limit = Number(arg.slice(8));
     else if (arg.startsWith('-')) throw new Error(`unknown option ${arg}`);
     else positional.push(arg);
@@ -216,14 +218,16 @@ async function main() {
     }
 
     const isTTY = process.stderr.isTTY;
-    const scan = await scanCorpus(file, profile, {
-      limit: opts.limit,
-      onProgress: (done, total) => {
-        if (isTTY && (done % 25 === 0 || done === total)) {
-          process.stderr.write(`\rscanning ${done}/${total}...`);
-        }
-      },
-    });
+    const scan = opts.adapter === 'forge'
+      ? await scanForgeDump(file, profile, { limit: opts.limit })
+      : await scanCorpus(file, profile, {
+        limit: opts.limit,
+        onProgress: (done, total) => {
+          if (isTTY && (done % 25 === 0 || done === total)) {
+            process.stderr.write(`\rscanning ${done}/${total}...`);
+          }
+        },
+      });
     if (isTTY) process.stderr.write('\r\x1b[K');
 
     const summary = summarize(scan);

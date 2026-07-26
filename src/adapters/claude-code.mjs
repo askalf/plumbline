@@ -38,6 +38,42 @@ const ACTION_MAP = {
   ExitPlanMode: 'state.write',
 };
 
+/**
+ * Tool -> the capability its use demonstrates the agent holds.
+ *
+ * Load-bearing: staircase detection reads only `capability_grant`, so without
+ * this mapping the primary detector is inert on real transcripts and only fires
+ * on hand-authored corpora. Exercising a tool is evidence of holding the
+ * capability; the first exercise in a session is the grant.
+ */
+const CAPABILITY_MAP = {
+  Read: ['fs:read'],
+  NotebookRead: ['fs:read'],
+  Glob: ['fs:read'],
+  Grep: ['fs:read'],
+  LS: ['fs:read'],
+  Write: ['fs:write'],
+  Edit: ['fs:write'],
+  MultiEdit: ['fs:write'],
+  NotebookEdit: ['fs:write'],
+  Bash: ['exec:local', 'proc:spawn'],
+  PowerShell: ['exec:local', 'proc:spawn'],
+  BashOutput: ['proc:spawn'],
+  KillShell: ['proc:spawn'],
+  WebFetch: ['net:egress:read'],
+  WebSearch: ['net:egress:read'],
+  Agent: ['agent:spawn'],
+  Task: ['agent:spawn'],
+  TodoWrite: ['state:write'],
+  ExitPlanMode: ['state:write'],
+};
+
+function capabilitiesFor(tool) {
+  if (CAPABILITY_MAP[tool]) return CAPABILITY_MAP[tool];
+  if (tool.startsWith('mcp__')) return ['mcp:call'];
+  return [];
+}
+
 const DENIAL_PATTERNS = [
   /permission (for this action )?(was |is )?denied/i,
   /requested permissions?.{0,40}(denied|rejected)/i,
@@ -158,6 +194,7 @@ export async function readTranscript(file, opts = {}) {
   /** @type {Map<string, object>} */
   const pending = new Map();
   const tools = {};
+  const held = new Set();
   let task = null;
   let cwd = opts.cwd ?? null;
   let seq = 1;
@@ -224,6 +261,11 @@ export async function readTranscript(file, opts = {}) {
           outcome: 'ok',
           note: tool,
         };
+
+        // First exercise of a capability in this session is the grant.
+        const fresh = capabilitiesFor(tool).filter((c) => !held.has(c));
+        for (const c of fresh) held.add(c);
+        if (fresh.length > 0) event.capability_grant = fresh;
 
         if (tool === 'Agent' || tool === 'Task') {
           event.instance = `sub-${block.id ?? event.seq}`;
