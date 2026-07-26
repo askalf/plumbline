@@ -14,7 +14,19 @@ import { assess } from './index.mjs';
 import { readTranscript, declareFor } from './adapters/claude-code.mjs';
 import { readExecutions } from './adapters/forge.mjs';
 import { readRedstampAudit } from './adapters/redstamp.mjs';
+import { readOpenai } from './adapters/openai.mjs';
+import { readAnthropic } from './adapters/anthropic.mjs';
+import { readLangchain } from './adapters/langchain.mjs';
+import { readOtel } from './adapters/otel.mjs';
 import { DEPENDENCIES, classifyDeadDetectors } from './reachability.mjs';
+
+/** Structured single-session adapters: file -> one trajectory. */
+const STRUCTURED_READERS = {
+  openai: readOpenai,
+  anthropic: readAnthropic,
+  langchain: readLangchain,
+  otel: readOtel,
+};
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -40,7 +52,7 @@ export function listProfiles() {
 }
 
 /** Recursively collect .jsonl files under a directory (or return the file itself). */
-export function collectTranscripts(target, { limit = Infinity } = {}) {
+export function collectTranscripts(target, { limit = Infinity, exts = ['.jsonl'] } = {}) {
   const found = [];
   // A symlink pointing at an ancestor makes statSync/readdirSync recurse
   // forever. Track resolved paths so a cycle terminates instead of hanging the
@@ -64,7 +76,7 @@ export function collectTranscripts(target, { limit = Infinity } = {}) {
       return;
     }
     if (st.isFile()) {
-      if (extname(path) === '.jsonl') found.push({ path, size: st.size });
+      if (exts.includes(extname(path))) found.push({ path, size: st.size });
       return;
     }
     if (!st.isDirectory()) return;
@@ -196,6 +208,45 @@ export async function scanRedstampAudit(file, profile, { thresholds } = {}) {
     scanned: 1,
     profile: profile.name ?? 'custom',
   };
+}
+
+/**
+ * Scan one structured agent-log file, or a directory of them, with a named
+ * adapter (openai | anthropic | langchain | otel). One file = one session.
+ */
+export async function scanStructuredLog(target, profile, adapter, { limit = Infinity, thresholds } = {}) {
+  const read = STRUCTURED_READERS[adapter];
+  if (!read) throw new Error(`no structured adapter: ${adapter}`);
+
+  let files;
+  try {
+    files = statSync(target).isDirectory()
+      ? collectTranscripts(target, { limit, exts: ['.json', '.jsonl'] }).map((f) => f.path)
+      : [target];
+  } catch (err) {
+    return { results: [], skipped: [{ path: target, reason: err.message }], scanned: 0, profile: profile.name ?? 'custom' };
+  }
+
+  const results = [];
+  const skipped = [];
+  for (const file of files) {
+    try {
+      const traj = read(file, profile);
+      if (!traj || traj.events.length <= 1) { skipped.push({ path: file, reason: 'no tool activity' }); continue; }
+      const normalized = traj.events.map((e, i) => normalizeEvent(e, { line: i + 1 }));
+      const report = assess(normalized, { thresholds });
+      results.push({
+        path: file, session: traj.session, task: traj.task, cwd: null,
+        tool_calls: traj.tool_calls, tools: {},
+        level: report.level, drift: report.drift, crossings: report.crossings,
+        earliest_actionable: report.earliest_actionable, reachability: report.reachability,
+        signals: report.signals.map((s) => ({ detector: s.detector, seq: s.seq, label: s.label, detail: s.detail ?? null, severity: s.severity })),
+      });
+    } catch (err) {
+      skipped.push({ path: file, reason: err.message });
+    }
+  }
+  return { results, skipped, scanned: files.length, profile: profile.name ?? 'custom' };
 }
 
 /** Scan a directory tree of transcripts. */

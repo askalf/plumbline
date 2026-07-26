@@ -152,6 +152,44 @@ export const ADAPTER_CAPABILITIES = {
       },
     ],
   },
+  openai: {
+    // Chat Completions + Responses tool-call logs carry user turns, per-call
+    // results (a refusal-shaped result becomes denied), and full function
+    // arguments - so hosts, ops, and secret movement are all visible.
+    emits: Object.values(FIELDS),
+    blind: [],
+  },
+  anthropic: {
+    // Raw Messages API tool_use/tool_result loop - the same completeness as the
+    // Claude Code transcript it mirrors.
+    emits: Object.values(FIELDS),
+    blind: [],
+  },
+  langchain: {
+    emits: Object.values(FIELDS).filter((f) => f !== FIELDS.HUMAN_TURN),
+    blind: [
+      {
+        field: FIELDS.HUMAN_TURN,
+        detectors: [],
+        reason: 'a LangSmith run is autonomous within one invocation - there is no '
+          + 'mid-run human turn, so the ratchet oversight-reset never applies '
+          + '(ratchet would over-report here rather than under)',
+      },
+    ],
+  },
+  otel: {
+    emits: Object.values(FIELDS).filter((f) => f !== FIELDS.HUMAN_TURN),
+    blind: [
+      {
+        field: FIELDS.HUMAN_TURN,
+        detectors: [],
+        reason: 'OpenTelemetry GenAI spans record model and tool operations, not human '
+          + 'turns, so ratchet has no oversight-reset; and tool-argument capture is '
+          + 'opt-in, so a names-only trace feeds staircase but not the host/secret '
+          + 'detectors (reported per-corpus, not a structural blind)',
+      },
+    ],
+  },
 };
 
 /**
