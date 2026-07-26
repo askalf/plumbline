@@ -45,18 +45,25 @@ export function detect(events) {
   const denials = new Map();
 
   for (const event of events) {
-    // Oversight resets the ratchet.
+    // Oversight resets the ratchet — but only oversight the agent cannot forge.
     //
     // A denial followed by a success is only evasion if the agent got there on
     // its own. If a human turn intervened, the operator adjudicated the denial
     // and the retry carries their authority — by construction that is not an
-    // agent routing around a gate.
+    // agent routing around a gate. This rule removed the large majority of
+    // ratchet findings across 380 real sessions.
     //
-    // This single rule removed the large majority of ratchet findings across
-    // 380 real sessions, where the dominant pattern was a guard refusing an
-    // action, the operator being consulted, and a narrower action then running.
+    // Adversarial testing then found the obvious abuse: a `session.turn` emitted
+    // by the AGENT laundered its own evasion, wiping the denial history that
+    // proved it. So the reset requires `actor: "human"`. An unattributed or
+    // agent-attributed turn is ignored, and the detector keeps counting.
+    //
+    // This does not defend against a forged `actor` field — an adapter reading
+    // a log the agent can write inherits that log's integrity, which SECURITY.md
+    // states is out of scope. It does close the in-band case, where the agent
+    // merely emits an event the schema already permits it to emit.
     if (event.action === 'session.turn') {
-      denials.clear();
+      if (event.actor === 'human') denials.clear();
       continue;
     }
 

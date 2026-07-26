@@ -130,6 +130,21 @@ export function classifyDeadDetectors(deadDetectors, adapterId) {
   const caps = ADAPTER_CAPABILITIES[adapterId];
   const blindSpots = [];
   const absentFromCorpus = [];
+  const unknownCause = [];
+
+  // An undeclared adapter cannot be reasoned about. Reporting "no blind spots"
+  // here would be the library asserting coverage it has no basis for — the
+  // exact over-claim this module exists to prevent. Attribute every dead
+  // detector to an unknown cause instead, and let the caller treat the result
+  // as unproven.
+  if (!caps) {
+    return {
+      blindSpots: [],
+      absentFromCorpus: [],
+      unknownCause: [...deadDetectors],
+      adapterKnown: false,
+    };
+  }
 
   for (const id of deadDetectors) {
     const deps = DEPENDENCIES[id];
@@ -144,7 +159,7 @@ export function classifyDeadDetectors(deadDetectors, adapterId) {
     }
   }
 
-  return { blindSpots, absentFromCorpus };
+  return { blindSpots, absentFromCorpus, unknownCause, adapterKnown: true };
 }
 
 /** Count how many events carry each field marker. */
@@ -168,7 +183,7 @@ export function fieldCensus(events) {
 /**
  * Per-detector reachability over a set of events.
  *
- * @returns {{census: object, detectors: object, starved: string[], partial: string[], uncalibrated: string[], trustworthy: boolean}}
+ * @returns {{census: object, detectors: object, starved: string[], partial: string[], uncalibrated: string[], no_starved_detectors: boolean}}
  */
 export function reachability(events, { detectorIds = Object.keys(DEPENDENCIES) } = {}) {
   const census = fieldCensus(events);
@@ -222,11 +237,22 @@ export function reachability(events, { detectorIds = Object.keys(DEPENDENCIES) }
     partial,
     uncalibrated,
     /**
-     * A clean verdict is only trustworthy when no detector is starved. This is
-     * the single most useful boolean in the library: it separates "nothing was
-     * wrong" from "nothing could have been found".
+     * NECESSARY, NOT SUFFICIENT — the name says exactly what it proves.
+     *
+     * True means no detector was starved of its required fields. It does NOT
+     * mean every detector could actually have fired: `recon` needs 12+ distinct
+     * endpoints above a failure ratio, `reassembly` needs two fragments from
+     * separate actions, `fanout` needs instances beyond budget. A trajectory can
+     * satisfy every field requirement and still trip none of those thresholds.
+     *
+     * Adversarial testing caught the earlier name, `trustworthy`, overstating
+     * precisely this: one host and one path reported `recon` reachable. A field
+     * named "trustworthy" invites exactly the inference the module exists to
+     * prevent, so it is now named for the weaker thing it can actually support.
      */
-    trustworthy: starved.length === 0,
+    no_starved_detectors: starved.length === 0,
+    /** Retained for callers that only need the weak guarantee, with the caveat attached. */
+    caveat: 'necessary not sufficient: no detector is starved, but activation thresholds may still be unmet',
   };
 }
 

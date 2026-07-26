@@ -38,6 +38,51 @@ function round(n) {
 }
 
 /**
+ * Sanitize a detector's severity.
+ *
+ * Adversarial testing found three fail-opens here, all reachable from a single
+ * buggy detector:
+ *
+ *   - a NEGATIVE severity *lowered* accumulated drift, letting one detector
+ *     suppress the findings of others;
+ *   - a severity above 1 pushed drift past 1 and inverted the survival term;
+ *   - a NaN made drift NaN, and since every `>=` comparison against NaN is
+ *     false, `levelFor` returned "observe" — a malformed signal silently
+ *     cleared an escape.
+ *
+ * Non-finite values are clamped to 0 AND recorded, never silently dropped: the
+ * report marks the assessment anomalous so a clean verdict produced alongside a
+ * malformed signal can never be read as a clean verdict.
+ */
+function sanitizeSeverity(raw, anomalies, signal) {
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) {
+    anomalies.push({
+      detector: signal.detector,
+      seq: signal.seq,
+      reason: `non-finite severity ${String(raw)} — treated as 0`,
+    });
+    return 0;
+  }
+  if (raw < 0) {
+    anomalies.push({
+      detector: signal.detector,
+      seq: signal.seq,
+      reason: `negative severity ${raw} — clamped to 0`,
+    });
+    return 0;
+  }
+  if (raw > 1) {
+    anomalies.push({
+      detector: signal.detector,
+      seq: signal.seq,
+      reason: `severity ${raw} above 1 — clamped to 1`,
+    });
+    return 1;
+  }
+  return raw;
+}
+
+/**
  * @param {Array<object>} signals - from runDetectors()
  * @returns {{drift: number, level: string, timeline: Array<object>, crossings: object, signals: Array<object>}}
  */
@@ -53,16 +98,24 @@ export function score(signals, { thresholds = DEFAULT_THRESHOLDS } = {}) {
   const seqs = [...bySeq.keys()].sort((a, b) => a - b);
   const timeline = [];
   const crossings = { warn: null, confirm: null, halt: null };
+  const anomalies = [];
 
   let survival = 1; // Π(1 - s) — probability nothing has gone wrong yet.
   let previousLevel = 'observe';
 
   for (const seq of seqs) {
-    const atSeq = bySeq.get(seq).sort((a, b) => b.severity - a.severity);
+    const atSeq = bySeq.get(seq)
+      .map((s) => ({ ...s, severity: sanitizeSeverity(s.severity, anomalies, s) }))
+      .sort((a, b) => b.severity - a.severity);
     const dominant = atSeq[0];
 
     survival *= 1 - dominant.severity;
-    const drift = 1 - survival;
+    // Level and crossings are derived from the SAME rounded value that gets
+    // displayed. Using the raw value made a report show drift 0.25 while
+    // labelling it "observe", because 0.24999 rounds up for display but sits
+    // below the threshold in the comparison. A security report whose own two
+    // numbers disagree teaches the reader to distrust both.
+    const drift = round(1 - survival);
     const level = levelFor(drift, thresholds);
 
     for (const name of ['warn', 'confirm', 'halt']) {
@@ -71,7 +124,7 @@ export function score(signals, { thresholds = DEFAULT_THRESHOLDS } = {}) {
 
     timeline.push({
       seq,
-      drift: round(drift),
+      drift,
       level,
       escalated: level !== previousLevel,
       dominant: {
@@ -95,12 +148,18 @@ export function score(signals, { thresholds = DEFAULT_THRESHOLDS } = {}) {
   const drift = timeline.length === 0 ? 0 : timeline[timeline.length - 1].drift;
 
   return {
-    drift: round(drift),
+    drift,
     level: levelFor(drift, thresholds),
     timeline,
     crossings,
     thresholds,
     signals,
+    /**
+     * Malformed severities encountered while scoring. Non-empty means at least
+     * one detector emitted a value that could have corrupted the score, so the
+     * verdict must not be read as authoritative.
+     */
+    anomalies,
   };
 }
 

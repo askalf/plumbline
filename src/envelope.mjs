@@ -52,26 +52,70 @@ export function envelopeFrom(events) {
 }
 
 /**
- * Capability matching. A pattern ending in `*` matches by prefix, so
- * `fs:/workspace/*` covers `fs:/workspace/src/index.mjs`. Everything else is
- * exact — capability grammar is deliberately not a glob language, because a
- * permissive matcher here silently widens the envelope.
+ * A capability containing a parent-directory segment is never in-envelope.
+ *
+ * Adversarial testing found this: a naive prefix match let
+ * `fs:/workspace/../../etc/shadow` satisfy `fs:/workspace/*`, so traversal
+ * defeated the envelope completely. plumbline cannot resolve paths (it never
+ * touches a filesystem and the trajectory may come from another machine), so
+ * the only safe answer is to refuse to consider a traversal in-envelope at all.
+ * A legitimate capability has no reason to carry `..`.
+ */
+function hasTraversal(capability) {
+  return /(^|[:/\\])\.\.([/\\]|$)/.test(capability);
+}
+
+/**
+ * Capability matching.
+ *
+ * Exact match, or a trailing `*` that matches by prefix — but the wildcard is
+ * NOT allowed to silently cross a delimiter. `net:api.x*` covers `net:api.xyz`
+ * and must not cover `net:api.x.evil.com`, because a pattern author writing a
+ * host prefix does not thereby intend every subdomain beneath it.
+ *
+ * Case-sensitive on purpose. An adapter emitting `EXEC:LOCAL` against an
+ * envelope granting `exec:local` produces a staircase signal rather than a
+ * silent grant — noisy, but it fails closed, and over-granting is the worse
+ * error in a security envelope.
  */
 export function capabilityAllowed(capability, allowed) {
+  if (hasTraversal(capability)) return false;
+
   for (const pattern of allowed) {
     if (pattern === capability) return true;
-    if (pattern.endsWith('*') && capability.startsWith(pattern.slice(0, -1))) return true;
+    if (pattern === '*') return true;
+    if (!pattern.endsWith('*')) continue;
+
+    const prefix = pattern.slice(0, -1);
+    if (!capability.startsWith(prefix)) continue;
+    const rest = capability.slice(prefix.length);
+
+    // The wildcard was placed at a delimiter, so descending is what was meant.
+    if (prefix.endsWith('/') || prefix.endsWith(':')) return true;
+    if (rest === '' || rest.startsWith('/')) return true;
+
+    // Mid-token wildcard: may complete the token, may not introduce a new
+    // delimiter and reach somewhere the author did not name.
+    if (!/[:/.]/.test(rest)) return true;
   }
   return false;
 }
 
-/** Host matching. A leading dot matches the domain and any subdomain. */
+/**
+ * Host matching. A leading dot matches the domain and any subdomain.
+ *
+ * Case-insensitive, because DNS is: treating `API.GITHUB.COM` as a different
+ * host from `api.github.com` produced false off-envelope findings, and alert
+ * fatigue loses real signal just as effectively as a missed detection.
+ */
 export function hostAllowed(host, allowed) {
   if (!host) return true;
-  for (const pattern of allowed) {
-    if (pattern === host) return true;
+  const h = String(host).toLowerCase();
+  for (const raw of allowed) {
+    const pattern = String(raw).toLowerCase();
+    if (pattern === h) return true;
     if (pattern === '*') return true;
-    if (pattern.startsWith('.') && (host === pattern.slice(1) || host.endsWith(pattern))) return true;
+    if (pattern.startsWith('.') && (h === pattern.slice(1) || h.endsWith(pattern))) return true;
   }
   return false;
 }

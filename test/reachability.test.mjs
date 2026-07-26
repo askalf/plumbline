@@ -55,12 +55,12 @@ test('a detector whose required field is absent is starved, and named', () => {
   assert.equal(r.detectors.staircase.status, 'starved');
   assert.deepEqual(r.detectors.staircase.missing, [FIELDS.CAPABILITY_GRANT]);
   assert.deepEqual(r.starved, ['staircase']);
-  assert.equal(r.trustworthy, false);
+  assert.equal(r.no_starved_detectors, false);
 });
 
 test('trustworthy is false whenever anything is starved — the headline boolean', () => {
   const starved = reachability([ev({})]);
-  assert.equal(starved.trustworthy, false);
+  assert.equal(starved.no_starved_detectors, false);
 
   const fed = reachability([
     ev({ capability_grant: ['a:b'] }),
@@ -69,7 +69,7 @@ test('trustworthy is false whenever anything is starved — the headline boolean
     ev({ outcome: 'denied' }),
     ev({ instance: 'i-1' }),
   ]);
-  assert.equal(fed.trustworthy, true, JSON.stringify(fed.starved));
+  assert.equal(fed.no_starved_detectors, true, JSON.stringify(fed.starved));
 });
 
 test('reassembly requires BOTH produces and consumes', () => {
@@ -89,7 +89,7 @@ test('egress is partial when it can see hosts but no payload signal', () => {
   assert.equal(r.detectors.egress.status, 'partial');
   assert.deepEqual(r.partial, ['egress']);
   assert.ok(r.detectors.egress.missing.includes(FIELDS.BYTES_OUT));
-  assert.equal(r.trustworthy, true, 'partial is not starved — some branches still work');
+  assert.equal(r.no_starved_detectors, true, 'partial is not starved — some branches still work');
 });
 
 test('ratchet without human turns is reachable but flagged uncalibrated', () => {
@@ -109,7 +109,7 @@ test('summarizeReachability names the starved detectors', () => {
 test('assess() attaches reachability to every verdict', () => {
   const report = assessTrajectory(corpus('benign-repo-triage.jsonl'));
   assert.ok(report.reachability, 'a verdict without reachability can be misread as proven');
-  assert.equal(typeof report.reachability.trustworthy, 'boolean');
+  assert.equal(typeof report.reachability.no_starved_detectors, 'boolean');
 });
 
 test('the benign corpus is clean but explicitly NOT trustworthy', () => {
@@ -117,7 +117,7 @@ test('the benign corpus is clean but explicitly NOT trustworthy', () => {
   // the report must say so rather than implying safety.
   const report = assessTrajectory(corpus('benign-repo-triage.jsonl'));
   assert.equal(report.level, 'observe');
-  assert.equal(report.reachability.trustworthy, false);
+  assert.equal(report.reachability.no_starved_detectors, false);
   assert.ok(report.reachability.starved.length > 0);
 });
 
@@ -179,8 +179,23 @@ test('classifyDeadDetectors separates an adapter blind spot from an unexercised 
 });
 
 test('an unknown adapter does not silently claim zero blind spots', () => {
-  // Fail loud rather than implying full coverage for an adapter we know nothing about.
-  const r = classifyDeadDetectors(['staircase'], 'never-heard-of-it');
-  assert.deepEqual(r.blindSpots, []);
-  assert.deepEqual(r.absentFromCorpus, ['staircase']);
+  // This test previously asserted the OPPOSITE of its own name: it checked that
+  // blindSpots was empty, which is precisely the silent zero-coverage claim the
+  // name warns about. Caught by adversarial review, not by the suite.
+  //
+  // Correct behaviour: an undeclared adapter cannot be reasoned about, so every
+  // dead detector is attributed to an unknown cause and the result is unproven
+  // rather than clean.
+  const r = classifyDeadDetectors(['staircase', 'ratchet'], 'never-heard-of-it');
+  assert.equal(r.adapterKnown, false, 'an undeclared adapter must be marked unknown');
+  assert.deepEqual(r.unknownCause, ['staircase', 'ratchet']);
+  assert.deepEqual(r.blindSpots, [], 'no blind spot can be attributed without a declaration');
+  assert.deepEqual(r.absentFromCorpus, [], 'nor can absence be attributed to the corpus');
+});
+
+test('a known adapter is marked known, so the two cases are distinguishable', () => {
+  const r = classifyDeadDetectors(['ratchet'], 'forge');
+  assert.equal(r.adapterKnown, true);
+  assert.deepEqual(r.unknownCause, []);
+  assert.equal(r.blindSpots.length, 1);
 });

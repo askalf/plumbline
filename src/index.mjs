@@ -37,7 +37,7 @@ export function assess(events, { envelope = null, only = null, thresholds = DEFA
     earliest_actionable: earliestActionable(scored),
     /**
      * Reachability travels with every verdict, deliberately. A caller that
-     * reads `level` without reading `reachability.trustworthy` can mistake
+     * reads `level` without reading `reachability.no_starved_detectors` can mistake
      * "nothing could be found" for "nothing was wrong" — which is exactly the
      * bug this project shipped and then caught three times.
      */

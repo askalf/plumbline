@@ -189,7 +189,7 @@ export function summarize(scan, { adapter = 'claude-code' } = {}) {
       byDetector[s.detector] = (byDetector[s.detector] ?? 0) + 1;
     }
     if (r.reachability) {
-      if (r.reachability.trustworthy) sessionsFullyReachable += 1;
+      if (r.reachability.no_starved_detectors) sessionsFullyReachable += 1;
       for (const [id, info] of Object.entries(r.reachability.detectors)) {
         if (info.status !== 'starved') reachableIn[id] = (reachableIn[id] ?? 0) + 1;
       }
@@ -203,7 +203,7 @@ export function summarize(scan, { adapter = 'claude-code' } = {}) {
   const total = scan.results.length;
 
   const deadOverCorpus = Object.keys(DEPENDENCIES).filter((id) => !reachableIn[id]);
-  const { blindSpots, absentFromCorpus } = classifyDeadDetectors(deadOverCorpus, adapter);
+  const { blindSpots, absentFromCorpus, unknownCause, adapterKnown } = classifyDeadDetectors(deadOverCorpus, adapter);
 
   return {
     profile: scan.profile,
@@ -232,7 +232,9 @@ export function summarize(scan, { adapter = 'claude-code' } = {}) {
        * The honest headline. A clean rate is only a safety claim when every
        * detector was reachable somewhere in the corpus.
        */
-      clean_rate_is_meaningful: blindSpots.length === 0,
+      clean_rate_is_meaningful: blindSpots.length === 0 && unknownCause.length === 0,
+      unknown_cause: unknownCause,
+      adapter_known: adapterKnown,
     },
     top: [...scan.results]
       .filter((r) => r.level !== 'observe')
