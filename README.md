@@ -52,11 +52,14 @@ npm install -g @askalf/plumbline
 # replay a reconstruction of the incident — watch it halt before the breach
 plumbline replay corpus/exploitgym.jsonl
 
-# audit your own agent sessions against a declared envelope
-plumbline scan ~/.claude/projects --profile=dev-workstation
-
-# scan an OpenAI / LangChain / OTel agent log
-plumbline scan ./run.json --adapter=openai --profile=agent
+# audit your own agent — point it at whatever harness runs it:
+plumbline scan ~/.claude/projects    --profile=dev-workstation                  # Claude Code (default)
+plumbline scan run.json         --adapter=openai    --profile=agent             # OpenAI Agents / Chat Completions
+plumbline scan messages.json    --adapter=anthropic --profile=agent             # Anthropic Messages API
+plumbline scan langgraph.json   --adapter=langchain --profile=agent             # LangChain / LangGraph
+plumbline scan trace.otlp.json  --adapter=otel      --profile=agent             # OpenTelemetry GenAI spans
+plumbline scan executions.jsonl --adapter=forge     --profile=agent             # server-side SDK-engine dump
+plumbline scan audit.jsonl      --adapter=redstamp  --profile=redstamp-guarded  # redstamp per-call audit log
 ```
 
 ## Watch the escape climb
