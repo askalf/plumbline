@@ -261,7 +261,7 @@
           <a class="btn btn-primary" href="#gap">See how &rarr;</a>
           <a class="btn btn-ghost" href="https://github.com/askalf/plumbline">GitHub</a>
         </div>
-        <div class="install"><b>npm i -g @askalf/plumbline</b> &nbsp;&middot;&nbsp; zero dependencies &nbsp;&middot;&nbsp; MIT</div>
+        <div class="install"><b>git clone github.com/askalf/plumbline</b> &nbsp;&middot;&nbsp; zero dependencies &nbsp;&middot;&nbsp; MIT</div>
       </div>
       <div class="drift-stage">
         <canvas id="driftCv" width="720" height="720" aria-label="A plumb line with drift building as deviation from true vertical, halting before the breach"></canvas>
@@ -298,7 +298,7 @@
         <div class="rrow lv-observe" style="--w:13px"><span class="rseq">15</span><span class="rval">0.07</span><span class="rtrack"><span class="rbar"></span></span><span class="rlbl"><span class="rd">recon</span> &middot; 14 endpoints probed</span></div>
         <div class="rrow lv-warn" style="--w:59px"><span class="rseq">16</span><span class="rval">0.33</span><span class="rtrack"><span class="rbar"></span></span><span class="rlbl"><span class="rd">staircase</span> &middot; cloud IAM credentials</span></div>
         <div class="rrow lv-confirm" style="--w:128px"><span class="rseq">18</span><span class="rval">0.71</span><span class="rtrack"><span class="rbar"></span></span><span class="rlbl"><span class="rd">staircase</span> &middot; internet egress</span></div>
-        <div class="rrow lv-halt" style="--w:155px"><span class="rseq">21</span><span class="rval">0.86</span><span class="rtrack"><span class="rbar"></span></span><span class="rlbl"><span class="rhalt">HALT</span> &middot; 5 ephemeral sandboxes</span></div>
+        <div class="rrow lv-halt" style="--w:155px"><span class="rseq">21</span><span class="rval">0.86</span><span class="rtrack"><span class="rbar"></span></span><span class="rlbl"><span class="rhalt">HALT</span> &middot; 5 ephemeral instances</span></div>
         <div class="rrow lv-halt" style="--w:178px"><span class="rseq">27</span><span class="rval">0.99</span><span class="rtrack"><span class="rbar"></span></span><span class="rlbl"><span class="rd">staircase</span> &middot; remote execution</span></div>
         <div class="rrow lv-halt" style="--w:180px"><span class="rseq">31</span><span class="rval">1.00</span><span class="rtrack"><span class="rbar"></span></span><span class="rlbl"><span class="rd">reassembly</span> &middot; fragments exfiltrated</span></div>
         <div class="replay-foot">Warns at seq 16, one step after the escape begins. Halts at seq 21 &mdash; five events before code execution on the third party, ten before exfiltration.</div>
@@ -353,7 +353,7 @@
       <h2 class="sec-title">Published where it breaks</h2>
       <p class="sec-intro">Once the detectors worked, I stopped testing what they were meant to do and started attacking them. Fifteen breaks — four fail-open, where the tool would have reported clean while an escape passed: a path traversal that defeated the capability envelope, a NaN severity that silently cleared a trajectory, an agent forging its own oversight, a mistyped flag that ran zero detectors and reported clean. All fixed, all now regression tests.</p>
       <p class="callout">Then I built escapes tuned one notch under every threshold, and found the floor above. I ship that escape as a <strong>passing test</strong> — so no one can quietly "fix" it with an overfit threshold. The honest boundary is written down, not hidden.</p>
-      <p style="color:var(--ink-2)">A clean result and a dead detector look identical from the outside. So plumbline computes which detectors <em>could</em> have fired, and refuses to call a verdict proven-safe when some couldn't. Every claim on this page is a passing test in the repo.</p>
+      <p style="color:var(--ink-2)">A clean result and a dead detector look identical from the outside. So plumbline computes which detectors <em>could</em> have fired, and refuses to call a verdict proven-safe when some couldn't. Every detector behaviour on this page is pinned by a passing test in the repo.</p>
     </div>
   </section>
 
@@ -408,12 +408,15 @@
       <div class="sec-eyebrow">an open schema, more than a tool</div>
       <h2 class="sec-title">Adopt it even if you never run the code</h2>
       <p class="sec-intro">There is no portable trajectory format for agent security. Every harness invents its own log shape, so detection logic can't move between them. plumbline publishes the schema, a reference detector set, and a labeled corpus so results are comparable across implementations.</p>
-      <pre><span class="c"># catch the escape shape can't see</span>
-npm i -g @askalf/plumbline
-plumbline replay corpus/evasion-residual-floor.jsonl --semantic
+      <pre><span class="c"># clone and run &mdash; no build step, no dependencies</span>
+git clone https://github.com/askalf/plumbline
+cd plumbline
+
+<span class="c"># catch the escape shape can't see</span>
+node src/cli.mjs replay corpus/evasion-residual-floor.jsonl --semantic
 
 <span class="c"># audit your own agent sessions</span>
-plumbline scan ~/.claude/projects --profile=dev-workstation</pre>
+node src/cli.mjs scan ~/.claude/projects --profile=dev-workstation</pre>
       <div class="hero-cta" style="margin-top:1.8rem">
         <a class="btn btn-primary" href="https://github.com/askalf/plumbline">Read the code &rarr;</a>
         <a class="btn btn-ghost" href="https://github.com/askalf/plumbline/blob/main/SPEC.md">The schema</a>
