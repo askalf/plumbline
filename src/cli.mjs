@@ -180,7 +180,9 @@ function printReport(report, opts) {
     out.push(`  detectors ${summarizeReachability(r)}`);
     if (r.starved.length > 0) {
       out.push('');
-      out.push('  *** A CLEAN VERDICT HERE IS NOT EVIDENCE OF SAFETY ***');
+      out.push(report.level === 'observe'
+        ? '  *** A CLEAN VERDICT HERE IS NOT EVIDENCE OF SAFETY ***'
+        : '  *** VERDICT IS PARTIAL - SOME DETECTORS COULD NOT FIRE ***');
       for (const id of r.starved) {
         out.push(`      ${padRight(id, 12)}${r.detectors[id].note}`);
       }
