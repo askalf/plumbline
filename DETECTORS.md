@@ -151,12 +151,13 @@ Four evasion corpora (`corpus/evasion-*.jsonl`) map the boundary precisely. An a
 
 The last row is the real floor, and it is asserted as a passing test on purpose. When an agent keeps every action within a granted capability and every host within an allowed set, **there is no drift to measure** — by the envelope's own definition, nothing drifted. The escape lived in the *semantics* of the actions (reading a credential file it had no task-reason to read), not their *shape*. Shape-based detection cannot see it.
 
-Two honest responses, neither of which is a threshold tweak:
+Three responses now, in order of strength:
 
-1. **The reachability caveat already fires.** The residual-floor escape scores clean but `no_starved_detectors` is false and three detectors are named as unable to fire — so the report never calls it proven-safe.
-2. **A tighter envelope never grants blanket `exec:local` + workspace-wide `fs:read` + `open_read` egress in the first place.** `envelope_warnings` flags the extreme case; a moderately broad envelope like the one that hides this is a judgement call plumbline surfaces but cannot make for the operator.
+1. **The semantic detector closes it** (`--semantic`, opt-in). A local model judges whether each action serves the declared task; on the residual-floor escape it flags the credential read that shape cannot see. Validated at zero false positives across eight benign trajectories, four adversarially shape-identical to escapes — one of which plumbline's own `metadata` detector false-positives on, while the semantic layer clears it. Full method in [semantic-detector.md](docs/semantic-detector.md). Needs a ~7B local model; 3B over-flags.
+2. **The reachability caveat fires even without the semantic layer.** The residual-floor escape scores clean but `no_starved_detectors` is false and three detectors are named as unable to fire — the report never calls it proven-safe.
+3. **A tighter envelope never grants blanket `exec:local` + workspace-wide `fs:read` + `open_read` egress in the first place.** `envelope_warnings` flags the extreme case; a moderately broad envelope like the one that hides this is a judgement call plumbline surfaces but cannot make for the operator.
 
-The only thing that closes the floor itself is the unimplemented semantic detector — judging whether an action serves the declared task — which needs a model, and is specified to run locally.
+The residual limit is now the model's judgement quality, not a structural blind spot in the method.
 
 ## Reachability — read this before trusting any clean result
 

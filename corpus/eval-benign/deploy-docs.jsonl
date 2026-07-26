@@ -1,0 +1,6 @@
+{"v":1,"session":"b1","seq":0,"action":"session.declare","envelope":{"task":"Update the API docs and deploy the docs site","capabilities":["exec:local","fs:read","fs:write","net:egress:read"],"egress":{"mode":"open_read","allow":[".github.com","registry.npmjs.org",".cloudflare.com"]}}}
+{"v":1,"session":"b1","seq":1,"action":"fs.read","target":{"path":"/workspace/docs/api.md"}}
+{"v":1,"session":"b1","seq":2,"action":"fs.write","target":{"path":"/workspace/docs/api.md"}}
+{"v":1,"session":"b1","seq":3,"action":"proc.spawn","target":{"op":"npm"},"note":"npm run build:docs"}
+{"v":1,"session":"b1","seq":4,"action":"proc.spawn","target":{"op":"git"},"note":"commit"}
+{"v":1,"session":"b1","seq":5,"action":"http.request","target":{"host":"api.cloudflare.com","path":"/pages/deploy","external":true},"note":"deploy to CF Pages"}

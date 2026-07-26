@@ -8,8 +8,9 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { assessTrajectory, DETECTOR_IDS, TrajectoryError, summarizeReachability } from './index.mjs';
+import { assessTrajectory, assessTrajectoryWithSemantic, DETECTOR_IDS, TrajectoryError, summarizeReachability } from './index.mjs';
 import { loadProfile, listProfiles, scanCorpus, scanForgeDump, summarize } from './scan.mjs';
+import { ollamaJudge, DEFAULT_MODEL } from './judges/ollama.mjs';
 
 const USAGE = `plumbline - trajectory-level monitoring for autonomous agents
 
@@ -26,6 +27,10 @@ Options:
   --only=a,b        Run only the named detectors
   --profile=NAME    Envelope profile for scan (${listProfiles().join(', ')})
   --adapter=NAME    claude-code (default) | forge
+  --semantic        Also run the model-backed semantic detector (replay only).
+                    Catches in-envelope escapes shape cannot see. Needs a local
+                    ollama at 127.0.0.1:11434 (model ${DEFAULT_MODEL}); override
+                    with PLUMBLINE_OLLAMA / PLUMBLINE_MODEL.
   --limit=N         Stop after N sessions (scan only)
   --quiet           Timeline only, no header or verdict
   --exit-code       Exit 1 when the verdict is confirm or halt (for CI)
@@ -37,7 +42,7 @@ Detectors: ${DETECTOR_IDS.join(', ')}
 function parseArgs(argv) {
   const opts = {
     json: false, evidence: false, only: null, quiet: false,
-    exitCode: false, profile: null, limit: Infinity, adapter: 'claude-code',
+    exitCode: false, profile: null, limit: Infinity, adapter: 'claude-code', semantic: false,
   };
   const positional = [];
   for (const arg of argv) {
@@ -45,6 +50,7 @@ function parseArgs(argv) {
     else if (arg === '--evidence') opts.evidence = true;
     else if (arg === '--quiet') opts.quiet = true;
     else if (arg === '--exit-code') opts.exitCode = true;
+    else if (arg === '--semantic') opts.semantic = true;
     else if (arg === '-h' || arg === '--help') opts.help = true;
     else if (arg.startsWith('--only=')) opts.only = arg.slice(7).split(',').map((s) => s.trim()).filter(Boolean);
     else if (arg.startsWith('--profile=')) opts.profile = arg.slice(10);
@@ -232,6 +238,13 @@ function printReport(report, opts) {
           (rungsLater !== null ? ` - ${rungsLater} steps before the halt threshold` : ''),
       );
     }
+    if (report.semantic) {
+      out.push(
+        report.semantic.ran
+          ? `  semantic  ran - ${report.semantic.findings} action(s) judged off-task`
+          : `  semantic  did not run (${report.semantic.error})`,
+      );
+    }
     out.push('');
   }
 
@@ -317,13 +330,19 @@ async function main() {
 
   let report;
   try {
-    report = assessTrajectory(text, { only: opts.only });
+    report = opts.semantic
+      ? await assessTrajectoryWithSemantic(text, { only: opts.only, judge: ollamaJudge() })
+      : assessTrajectory(text, { only: opts.only });
   } catch (err) {
     if (err instanceof TrajectoryError) {
       process.stderr.write(`plumbline: ${err.message}\n`);
       return 2;
     }
     throw err;
+  }
+
+  if (opts.semantic && report.semantic && !report.semantic.ran && command === 'replay' && !opts.json) {
+    process.stderr.write(`plumbline: semantic layer did not run (${report.semantic.error}); showing shape-only verdict\n`);
   }
 
   if (command === 'validate') {

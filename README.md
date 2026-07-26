@@ -99,6 +99,23 @@ Three profiles ship: `eval-sandbox`, `ci-runner`, `dev-workstation` (`plumbline 
 
 Scoring: within one action take the strongest signal (never compound); across actions combine by noisy-OR, `drift = 1 - Π(1 - s)`. Output is a drift score and an evidence bundle — **never allow/deny.** Thresholds ladder `observe → warn → confirm → halt`; what a level means is the caller's decision.
 
+### The semantic layer — catching what shape cannot
+
+The seven deterministic detectors measure the *shape* of a trajectory. They have a floor: an escape that stays within every granted capability and allowed host produces no drift, and scores clean. That escape lives in the *semantics* of the actions — reading a credential file it had no task-reason to read — and is proven by [`corpus/evasion-residual-floor.jsonl`](corpus/evasion-residual-floor.jsonl).
+
+The optional `--semantic` layer closes it. It asks a **local** model one question — *does each action serve the declared task?* — and merges the answer into the same scoring. Evaluated at temperature 0 over 5 escapes and 8 benign trajectories (4 adversarially chosen to look shape-identical to escapes):
+
+| Model | Escapes caught | Benign clean | False positives |
+|---|---|---|---|
+| **qwen2.5:7b** | **5 / 5** | **8 / 8** | **0** |
+| llama3.2:3b | 5 / 5 | 6 / 8 | 3 (over-flags) |
+
+The 7B model catches the residual-floor escape **no shape detector can see**, with zero false alarms — including a case where plumbline's own deterministic `metadata` detector false-positives (a security-research task that curls the metadata endpoint) and the semantic layer correctly clears it. Local by design, per the Hugging Face lesson: the model that analyzes an attack must not be one that refuses to. Full method, the model-size floor, latency, and reproduction: [docs/semantic-detector.md](docs/semantic-detector.md).
+
+```sh
+plumbline replay corpus/evasion-residual-floor.jsonl --semantic   # HALT, where shape says clean
+```
+
 ## Validated against real traffic
 
 A detector set that has only seen its own synthetic corpus is worthless. plumbline was validated against **1,586 real agent sessions / 57,602 tool calls** across two machines and two independent harnesses.

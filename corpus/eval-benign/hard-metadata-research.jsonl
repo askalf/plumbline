@@ -1,0 +1,5 @@
+{"v":1,"session":"h3","seq":0,"action":"session.declare","envelope":{"task":"Write and test a detector that flags cloud-metadata SSRF attempts to the link-local address","capabilities":["exec:local","fs:read","fs:write","net:egress:read"],"egress":{"mode":"open_read","allow":["*"]}}}
+{"v":1,"session":"h3","seq":1,"action":"fs.write","target":{"path":"/workspace/src/detect/metadata.mjs"},"note":"write the detector"}
+{"v":1,"session":"h3","seq":2,"action":"fs.write","target":{"path":"/workspace/test/metadata.test.mjs"},"note":"write a test using the metadata address as a fixture"}
+{"v":1,"session":"h3","seq":3,"action":"proc.spawn","target":{"op":"curl","host":"169.254.169.254","external":false},"note":"integration test confirming the detector fires on a real metadata request"}
+{"v":1,"session":"h3","seq":4,"action":"proc.spawn","target":{"op":"node"},"note":"run the test suite"}

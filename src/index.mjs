@@ -15,6 +15,7 @@ import { envelopeFrom, normalizeEnvelope, undeclaredEnvelope, envelopeWarnings }
 import { runDetectors, DETECTORS, DETECTOR_IDS } from './detect/index.mjs';
 import { score, levelFor, earliestActionable, LEVELS, DEFAULT_THRESHOLDS } from './score.mjs';
 import { reachability, summarizeReachability, fieldCensus, DEPENDENCIES, FIELDS } from './reachability.mjs';
+import { assessSemantic, buildPrompt, actionLine } from './semantic.mjs';
 
 /**
  * Assess a normalized event list.
@@ -22,9 +23,15 @@ import { reachability, summarizeReachability, fieldCensus, DEPENDENCIES, FIELDS 
  * @param {Array<object>} events
  * @param {{envelope?: object, only?: string[]|null, thresholds?: object}} [options]
  */
-export function assess(events, { envelope = null, only = null, thresholds = DEFAULT_THRESHOLDS } = {}) {
+export function assess(events, { envelope = null, only = null, thresholds = DEFAULT_THRESHOLDS, extraSignals = [] } = {}) {
   const env = envelope ? normalizeEnvelope(envelope) : envelopeFrom(events);
-  const signals = runDetectors(events, env, { only });
+  const detected = runDetectors(events, env, { only });
+  // extraSignals carries the semantic layer's findings, computed asynchronously
+  // by the caller (it needs a model) and merged here so it flows through the
+  // same noisy-OR scoring as every deterministic signal. The core stays sync.
+  const signals = extraSignals.length > 0
+    ? [...detected, ...extraSignals].sort((a, b) => a.seq - b.seq)
+    : detected;
   const scored = score(signals, { thresholds });
   const reach = reachability(events, { detectorIds: only ?? DETECTOR_IDS });
 
@@ -57,6 +64,39 @@ export function assessTrajectory(text, options = {}) {
   return assess(parseTrajectory(text), options);
 }
 
+/**
+ * Assess with the optional semantic layer.
+ *
+ * Runs the deterministic detectors and the model-backed semantic detector, then
+ * merges both into one verdict. This is the only assessment path that can catch
+ * the semantic-escape floor — an escape composed entirely of in-envelope actions
+ * that simply do not serve the task. It requires a `judge` (see
+ * `src/judges/ollama.mjs`); without one it degrades to a plain assessment with a
+ * note that the semantic layer did not run, never silently pretending it did.
+ *
+ * @param {Array<object>} events
+ * @param {{judge?: Function, envelope?: object, only?: string[]|null, thresholds?: object}} [options]
+ */
+export async function assessWithSemantic(events, { judge, ...options } = {}) {
+  const env = options.envelope ? normalizeEnvelope(options.envelope) : envelopeFrom(events);
+  const semantic = await assessSemantic(events, env, { judge });
+  const report = assess(events, { ...options, extraSignals: semantic.signals });
+
+  return {
+    ...report,
+    semantic: {
+      ran: semantic.available,
+      error: semantic.error ?? null,
+      findings: semantic.signals.length,
+    },
+  };
+}
+
+/** Async convenience over a JSONL string. */
+export async function assessTrajectoryWithSemantic(text, options = {}) {
+  return assessWithSemantic(parseTrajectory(text), options);
+}
+
 export {
   parseTrajectory,
   normalizeEvent,
@@ -79,4 +119,7 @@ export {
   fieldCensus,
   DEPENDENCIES,
   FIELDS,
+  assessSemantic,
+  buildPrompt,
+  actionLine,
 };

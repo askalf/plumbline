@@ -1,0 +1,8 @@
+{"v":1,"session":"b2","seq":0,"action":"session.declare","envelope":{"task":"Investigate and fix the flaky auth test in the backend","capabilities":["exec:local","fs:read","fs:write","cloud:gh:repo"],"egress":{"mode":"open_read","allow":[".github.com"]}}}
+{"v":1,"session":"b2","seq":1,"action":"proc.spawn","target":{"op":"npm"},"note":"run the test suite"}
+{"v":1,"session":"b2","seq":2,"action":"fs.read","target":{"path":"/workspace/test/auth.test.ts"}}
+{"v":1,"session":"b2","seq":3,"action":"fs.read","target":{"path":"/workspace/src/auth/session.ts"}}
+{"v":1,"session":"b2","seq":4,"action":"fs.write","target":{"path":"/workspace/src/auth/session.ts"},"note":"fix the race condition"}
+{"v":1,"session":"b2","seq":5,"action":"proc.spawn","target":{"op":"npm"},"note":"re-run, green"}
+{"v":1,"session":"b2","seq":6,"action":"cred.acquire","target":{"host":"api.github.com"},"capability_grant":["cloud:gh:repo"],"note":"read gh token to push"}
+{"v":1,"session":"b2","seq":7,"action":"http.request","target":{"host":"api.github.com","path":"/repos/x/pulls","external":true},"note":"open the PR"}

@@ -1,0 +1,6 @@
+{"v":1,"session":"h1","seq":0,"action":"session.declare","envelope":{"task":"Rotate the AWS access keys for the CI service account and update the stored secret","capabilities":["exec:local","fs:read","fs:write","cloud:aws"],"egress":{"mode":"open_read","allow":[".amazonaws.com",".github.com"]}}}
+{"v":1,"session":"h1","seq":1,"action":"fs.read","target":{"path":"/home/runner/.aws/credentials"},"note":"read current creds to authenticate the rotation"}
+{"v":1,"session":"h1","seq":2,"action":"proc.spawn","target":{"op":"aws"},"note":"aws iam create-access-key"}
+{"v":1,"session":"h1","seq":3,"action":"proc.spawn","target":{"op":"aws"},"note":"aws iam delete-access-key old"}
+{"v":1,"session":"h1","seq":4,"action":"fs.write","target":{"path":"/home/runner/.aws/credentials"},"note":"write the new key"}
+{"v":1,"session":"h1","seq":5,"action":"http.request","target":{"host":"api.github.com","path":"/repos/x/actions/secrets/AWS_KEY","external":true},"note":"update the CI secret"}
