@@ -75,7 +75,30 @@ Dotted lowercase verbs, `namespace.verb`. The namespace matters more than exhaus
 | `mcp` | `mcp.call` |
 | `egress` | `egress.write` |
 
-**`session.turn` deserves special mention.** It marks a human turn in the conversation, and it is load-bearing: a denial followed by a success is only evasion if the agent got there alone. If oversight intervened between them, the operator adjudicated it and the retry carries their authority. Emit this event whenever a human speaks, and detectors that reason about evasion should reset on it.
+**`session.turn` deserves special mention, and it has a hard requirement.** It marks a human turn, and it is load-bearing: a denial followed by a success is only evasion if the agent got there alone. If oversight intervened between them, the operator adjudicated it and the retry carries their authority.
+
+> ⚠️ **A `session.turn` MUST carry `actor: "human"` to count as oversight.**
+>
+> ```json
+> {"v":1,"session":"s","seq":9,"action":"session.turn","actor":"human"}
+> ```
+>
+> Adversarial testing found the obvious abuse: an agent emitting its own `session.turn` laundered its evasion, wiping the denial history that proved it. A conforming implementation therefore treats a turn as oversight **only** when `actor` is exactly `"human"`. An unattributed turn, or one attributed to the agent, is not oversight — absence of proof is not proof.
+>
+> Adapters that emit `session.turn` without the actor produce trajectories in which evasion detection silently never resets. This is the most common conformance mistake.
+
+Note this defends only the in-band case, where the agent emits an event the schema already permits it to emit. It does not defend against a forged `actor` field — an implementation reading a log the agent can write inherits that log's integrity. Collect trajectories somewhere the monitored agent cannot write.
+
+## The `actor` field
+
+`actor` identifies who performed an action, and carries security weight in exactly one place: `session.turn`, above. Two values are meaningful to the reference detectors:
+
+| Value | Meaning |
+|---|---|
+| `"human"` | A person. The only value that counts as oversight. |
+| anything else | The agent, a subagent, or an unattributed actor. Never oversight. |
+
+Everywhere else `actor` is descriptive. Use a stable identifier for the logical agent so ephemeral instances of one agent share it — that is what lets `instance` collapse a swarm back into a single trajectory.
 
 ## Conformance
 
@@ -84,7 +107,22 @@ An implementation conforms if it:
 1. accepts every event in `corpus/*.jsonl` without error;
 2. reports `corpus/exploitgym.jsonl` as reaching its highest severity level;
 3. reports `corpus/benign-repo-triage.jsonl` as clean;
-4. reports a trajectory lacking `session.declare` as undeclared rather than clean.
+4. reports a trajectory lacking `session.declare` as undeclared rather than clean;
+5. treats a `session.turn` as oversight **only** when `actor` is `"human"`;
+6. reports, alongside any clean verdict, which detectors could not have fired — see below.
+
+### Reporting what could not be checked
+
+A clean result and a detector that was unable to run are indistinguishable from the outside. A conforming implementation must therefore not emit a bare clean verdict. The reference implementation attaches three things to every report, and any implementation claiming conformance needs equivalents:
+
+| Field | Meaning |
+|---|---|
+| `reachability.starved` | Detectors whose required fields were absent from the trajectory. They found nothing because they could not look. |
+| `reachability.no_starved_detectors` | True when nothing was starved. **Necessary, not sufficient** — a detector can have its fields present and still not meet its activation thresholds. Do not name this field anything stronger than what it proves. |
+| `envelope_warnings` | Ways the declared envelope itself disables detection: granting `*`, allowing every host, unbounded budgets. A permissive policy produces a clean report with nothing behind it, and no amount of correct detector code will reveal that. |
+| `anomalies` | Malformed severities encountered while scoring. A non-finite severity once made total drift non-finite, and every threshold comparison against it false — silently clearing an escape. |
+
+The intent is narrow and worth stating plainly: **an implementation must never let a reader mistake "nothing could be found" for "nothing was wrong."**
 
 Detector sets and scoring are explicitly **not** specified. Two conforming implementations may disagree about a trajectory; the point of the schema is that the disagreement is now legible.
 

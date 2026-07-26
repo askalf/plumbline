@@ -77,6 +77,13 @@ export const DEPENDENCIES = {
     unlocks: [],
     calibratedBy: [],
   },
+  metadata: {
+    // Only needs a host to inspect. Thresholdless and envelope-independent — it
+    // is reachable on any trajectory that records where requests went.
+    requires: [FIELDS.HOST],
+    unlocks: [],
+    calibratedBy: [],
+  },
 };
 
 /**

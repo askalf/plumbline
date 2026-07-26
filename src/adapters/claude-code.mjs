@@ -86,6 +86,13 @@ const DENIAL_PATTERNS = [
 const URL_RE = /\bhttps?:\/\/([a-z0-9.-]+\.[a-z]{2,})(?::\d+)?(\/[^\s'"`;|)]*)?/gi;
 const SSH_RE = /\bssh\s+(?:-\S+\s+)*(?:[\w.-]+@)?([a-z0-9.-]+\.[a-z]{2,}|\d+\.\d+\.\d+\.\d+)/gi;
 const SCP_RE = /\bscp\s+\S*?(?:[\w.-]+@)?([a-z0-9.-]+\.[a-z]{2,}|\d+\.\d+\.\d+\.\d+):/gi;
+// URL_RE requires a dotted alphabetic TLD, so a bare-IP or link-local target
+// slips past it. That gap is exactly what a capability-laundering escape uses:
+// `curl <link-local-ip>/…` to read cloud metadata looks like an ordinary local
+// command with no recognised host. Capture IP hosts and metadata hostnames from
+// http(s) URLs and from bare fetch arguments so the metadata detector can see them.
+const IP_URL_RE = /\bhttps?:\/\/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})(?::\d+)?/gi;
+const FETCH_ARG_RE = /\b(?:curl|wget|http|https|nc|ncat)\s+(?:-\S+\s+)*(?:https?:\/\/)?(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}|[a-z0-9.-]+\.internal)\b/gi;
 
 /** Hosts that are the local machine, not egress. */
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '0.0.0.0', '::1']);
@@ -101,11 +108,14 @@ function hostFromUrl(url) {
 /** Pull outbound hosts out of a shell command. Best-effort by design. */
 function hostsInCommand(command) {
   const hosts = new Set();
-  for (const re of [URL_RE, SSH_RE, SCP_RE]) {
+  for (const re of [URL_RE, SSH_RE, SCP_RE, IP_URL_RE, FETCH_ARG_RE]) {
     re.lastIndex = 0;
     let m;
     while ((m = re.exec(command)) !== null) {
       const host = m[1];
+      // Loopback is not egress; but link-local (169.254.x) and other IP hosts
+      // ARE reported, so the metadata detector can inspect them. It decides
+      // whether an address is a metadata target — this only surfaces the host.
       if (host && !LOCAL_HOSTS.has(host)) hosts.add(host);
     }
   }

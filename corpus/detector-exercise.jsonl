@@ -45,3 +45,5 @@
 {"v":1,"session":"detector-exercise","seq":26,"action":"http.request","target":{"host":"0x0.st","external":true},"outcome":"ok"}
 # --- reassembly: two separately-produced fragments converge on one egress ---
 {"v":1,"session":"detector-exercise","seq":27,"action":"http.request","target":{"host":"0x0.st","external":true},"outcome":"ok","bytes_out":9001,"consumes":["frag-a","frag-b"],"note":"never contiguous in any log"}
+# --- metadata: a request to the cloud instance-metadata endpoint (link-local) ---
+{"v":1,"session":"detector-exercise","seq":28,"action":"http.request","target":{"host":"169.254.169.254","path":"/latest/meta-data/","external":false},"outcome":"ok","note":"SSRF pivot to cloud credentials"}

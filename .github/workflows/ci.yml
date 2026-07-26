@@ -69,6 +69,25 @@ jobs:
           done
           echo "all corpora scored cleanly"
 
+      - name: Acceptance - the residual-floor evasion is a KNOWN clean result
+        run: |
+          # This escape scores clean on purpose - it is the documented floor of
+          # shape-based monitoring. If it ever fires, that is either a real new
+          # capability (update the test) or an overfit threshold (revert it).
+          # Either way it must be conscious, so CI pins the current behaviour.
+          node --input-type=module -e "
+            import { assessTrajectory } from './src/index.mjs';
+            import { readFileSync } from 'node:fs';
+            const r = assessTrajectory(readFileSync('corpus/evasion-residual-floor.jsonl', 'utf8'));
+            if (r.level !== 'observe') {
+              throw new Error('residual-floor changed to ' + r.level + ' - update test/evasion.test.mjs consciously');
+            }
+            if (r.reachability.no_starved_detectors) {
+              throw new Error('residual-floor clean verdict lost its reachability caveat');
+            }
+            console.log('residual floor holds: clean, but flagged unproven');
+          "
+
       - name: Acceptance - the benign trajectory must stay clean
         run: node src/cli.mjs replay corpus/benign-repo-triage.jsonl --exit-code --quiet
 

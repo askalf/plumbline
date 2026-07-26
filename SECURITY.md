@@ -29,6 +29,9 @@ Pre-1.0: only the latest minor release receives fixes.
 - **Log integrity.** plumbline reasons about what it is told. If the trajectory source can be forged or truncated by the thing being monitored, the analysis inherits that weakness. Collect trajectories somewhere the agent cannot write.
 - **In-process activity.** Anything not surfaced as a tool call — computation, reasoning, data transformation inside a single action — is invisible by construction.
 - **Comply-versus-evade.** `ratchet` cannot distinguish an agent reshaping a blocked command to satisfy policy from one reshaping it to defeat policy. Both are reported; the distinction requires semantics the deterministic detectors don't have.
+- **The semantic-escape floor.** An escape that keeps every action within a granted capability and every host within an allowed set produces no drift, because by the envelope's own definition nothing drifted. Demonstrated by `corpus/evasion-residual-floor.jsonl`: an agent reads an ambient credential already on disk, uses it via granted `exec:local`, and exfiltrates through an allowed host — and plumbline scores it clean. The escape lives in the *semantics* of the actions (reading a credential file it had no task-reason to read), which shape-based detection cannot see. Mitigated, not closed, by the reachability caveat (which refuses to call such a verdict proven-safe) and by a tighter envelope. Closing it requires the unimplemented semantic detector.
+
+The four `corpus/evasion-*.jsonl` files map this boundary precisely and are asserted as regression tests, including the one that scores clean — so the floor cannot be quietly "fixed" with an overfit threshold that regresses precision on benign work.
 
 ## Reporting a false negative
 

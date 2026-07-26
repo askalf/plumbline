@@ -33,7 +33,7 @@ const corpus = (name) => readFileSync(join(here, '..', 'corpus', name), 'utf8');
  * Adding a detector means updating this list AND adding a trigger to
  * corpus/detector-exercise.jsonl. That friction is the point.
  */
-const EXPECTED_DETECTORS = ['egress', 'fanout', 'ratchet', 'reassembly', 'recon', 'staircase'];
+const EXPECTED_DETECTORS = ['egress', 'fanout', 'metadata', 'ratchet', 'reassembly', 'recon', 'staircase'];
 
 test('LIVENESS: every expected detector fires on the exercise corpus', () => {
   const report = assessTrajectory(corpus('detector-exercise.jsonl'));

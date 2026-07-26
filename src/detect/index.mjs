@@ -12,8 +12,9 @@ import * as reassembly from './reassembly.mjs';
 import * as egress from './egress.mjs';
 import * as ratchet from './ratchet.mjs';
 import * as fanout from './fanout.mjs';
+import * as metadata from './metadata.mjs';
 
-export const DETECTORS = [recon, staircase, reassembly, egress, ratchet, fanout];
+export const DETECTORS = [recon, staircase, reassembly, egress, ratchet, fanout, metadata];
 
 export const DETECTOR_IDS = DETECTORS.map((d) => d.id);
 
@@ -42,4 +43,4 @@ export function runDetectors(events, envelope, { only = null } = {}) {
   return signals.sort((a, b) => a.seq - b.seq || a.detector.localeCompare(b.detector));
 }
 
-export { recon, staircase, reassembly, egress, ratchet, fanout };
+export { recon, staircase, reassembly, egress, ratchet, fanout, metadata };
