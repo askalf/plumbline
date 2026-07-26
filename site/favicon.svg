@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="plumbline">
+  <rect width="32" height="32" rx="7" fill="#0d1317"/>
+  <circle cx="16" cy="5.5" r="1.7" fill="#cba227"/>
+  <line x1="16" y1="5.5" x2="16" y2="17" stroke="#cba227" stroke-width="1.7"/>
+  <path d="M16 28 L11 18 L11 15 L21 15 L21 18 Z" fill="#cba227"/>
+</svg>

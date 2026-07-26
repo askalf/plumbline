@@ -12,7 +12,7 @@
  * The only thing that catches it is judging INTENT: does this action serve the
  * declared task? That needs a model. And - the load-bearing design decision -
  * it is built to run against a LOCAL model, because during the July 2026
- * Hugging Face incident the commercial frontier APIs refused to analyze the
+ * July 2026 incident the commercial frontier APIs refused to analyze the
  * attack artifacts and the defenders had to reach for a self-hostable
  * open-weight model. A monitor that stops working when it sees a real attack is
  * not a monitor.

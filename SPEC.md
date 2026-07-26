@@ -26,7 +26,7 @@ Required on every event: `v`, `session`, `seq`, `action`.
 
 **`seq` is authoritative, not `ts`.** Wall-clock ordering breaks across ephemeral instances and parallel tool calls. Gaps in `seq` are legal; ordering is not negotiable.
 
-**`actor` is the logical agent; `instance` is the ephemeral compute.** This is what lets a swarm of short-lived sandboxes collapse back into one trajectory. In the July 2026 Hugging Face incident, ~17,000 actions were spread across ephemeral sandboxes specifically so that no single instance's log looked interesting. A monitor scoped to one instance is blind by construction.
+**`actor` is the logical agent; `instance` is the ephemeral compute.** This is what lets a swarm of short-lived sandboxes collapse back into one trajectory. In the July 2026 incident, ~17,000 actions were spread across ephemeral sandboxes specifically so that no single instance's log looked interesting. A monitor scoped to one instance is blind by construction.
 
 **`outcome: "denied"` is a first-class value.** A guard refusing an action is signal, not an error. Without it you cannot detect an agent reshaping a blocked request until it passes.
 

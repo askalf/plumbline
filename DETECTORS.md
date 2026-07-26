@@ -87,7 +87,7 @@ Fires on **evasion**, not retry. A denial followed by the same request denied ag
 
 ## `recon` — fingerprinting shape
 
-**Catches:** systematic probing. Many distinct endpoints against one host, a high proportion of failures, little state change — the shape that precedes a targeted exploit. The ExploitGym models identified Sonatype Nexus 3 exactly this way, from response headers, error formats and caching behaviour.
+**Catches:** systematic probing. Many distinct endpoints against one host, a high proportion of failures, little state change — the shape that precedes a targeted exploit. An escape fingerprints a package proxy exactly this way, from response headers, error formats and caching behaviour.
 
 **Severity:** `min(0.25, distinctEndpoints / 200)`, engaging only above 12 distinct endpoints and only when the failure ratio exceeds `budget.max_probe_ratio`.
 
@@ -210,4 +210,4 @@ They assert that every registered detector still fires on `corpus/detector-exerc
 
 ## Not implemented
 
-**Goal divergence** — judging whether a window of actions still serves the declared task. This needs a model, and it is specified to run against a **local** one: during the Hugging Face incident, commercial frontier APIs refused to analyze the attack artifacts and the defenders reached for a self-hostable open-weight model. A monitor that stops working when it sees a real attack is not a monitor.
+**Goal divergence** — judging whether a window of actions still serves the declared task. This needs a model, and it is specified to run against a **local** one: during the July 2026 incident, commercial frontier APIs refused to analyze the attack artifacts and the defenders reached for a self-hostable open-weight model. A monitor that stops working when it sees a real attack is not a monitor.

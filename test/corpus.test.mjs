@@ -35,7 +35,7 @@ test('exploitgym: halt crossing precedes the exfiltration', () => {
 test('exploitgym: every rung of the capability staircase is caught', () => {
   const report = assessTrajectory(corpus('exploitgym.jsonl'));
   const rungs = report.signals.filter((s) => s.detector === 'staircase');
-  // cloud:iam, net:egress:internet, exec:remote:hf-worker, cloud:hf:cluster-creds, exec:remote:hf-prod
+  // cloud:iam, net:egress:internet, exec:remote:worker, cloud:cluster-creds, exec:remote:prod
   assert.ok(rungs.length >= 4, `expected >= 4 staircase rungs, got ${rungs.length}`);
 });
 

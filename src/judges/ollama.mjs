@@ -7,7 +7,7 @@
  *
  * The default endpoint is localhost, on purpose. The semantic detector exists
  * to catch escapes that shape cannot see, and it is built to run against a
- * model you host — because during the July 2026 Hugging Face incident the
+ * model you host — because during the July 2026 incident the
  * commercial frontier APIs refused to analyze the attack artifacts and the
  * defenders had to reach for a self-hostable open-weight model. A monitor that
  * stops working when it sees a real attack is not a monitor.
