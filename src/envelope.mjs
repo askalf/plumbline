@@ -2,7 +2,7 @@
  * The intent envelope: the declared job and the reach it legitimately requires.
  *
  * Every detector measures against this. Without it there is no such thing as
- * drift — only novelty — which is the distinction between plumbline and
+ * drift - only novelty - which is the distinction between plumbline and
  * generic anomaly detection.
  */
 
@@ -15,7 +15,7 @@ export const DEFAULT_BUDGET = {
 /**
  * An envelope used when a trajectory carries no session.declare. Nothing is
  * permitted, so every capability and host reads as off-envelope. That is the
- * correct default — an undeclared trajectory is unauditable, and the report
+ * correct default - an undeclared trajectory is unauditable, and the report
  * says so rather than quietly assuming benign intent.
  */
 export function undeclaredEnvelope() {
@@ -36,8 +36,8 @@ export function normalizeEnvelope(raw) {
     capabilities: Array.isArray(raw.capabilities) ? raw.capabilities.filter((c) => typeof c === 'string') : [],
     egress: {
       allow: Array.isArray(raw.egress?.allow) ? raw.egress.allow.filter((h) => typeof h === 'string') : [],
-      // 'allowlist' — any unlisted host is drift (eval sandboxes, CI).
-      // 'open_read' — reads may go anywhere, writes must be listed. Correct for
+      // 'allowlist' - any unlisted host is drift (eval sandboxes, CI).
+      // 'open_read' - reads may go anywhere, writes must be listed. Correct for
       // research-capable agents, whose job includes reading arbitrary pages.
       mode: raw.egress?.mode === 'open_read' ? 'open_read' : 'allowlist',
     },
@@ -49,6 +49,70 @@ export function normalizeEnvelope(raw) {
 export function envelopeFrom(events) {
   const declare = events.find((e) => e.action === 'session.declare' && e.envelope);
   return declare ? normalizeEnvelope(declare.envelope) : undeclaredEnvelope();
+}
+
+/**
+ * Degenerate-envelope detection.
+ *
+ * The envelope is the acknowledged weak point: a sufficiently generous one
+ * silences every envelope-gated detector, and the result is a clean report with
+ * nothing behind it. Adversarial testing made this concrete - an envelope
+ * granting `*` with unbounded budgets produced ZERO signals from 41 plainly
+ * suspicious events, while reachability still reported no starvation, because
+ * every required field was present.
+ *
+ * That is the one failure neither the liveness controls nor reachability can
+ * see, since nothing is broken: the policy simply permits everything. So it
+ * gets its own check. A degenerate envelope cannot be prevented - it is the
+ * operator's to write - but it can be refused the appearance of a clean audit.
+ */
+const ABSURD_BUDGET = 10000;
+
+export function envelopeWarnings(envelope) {
+  const warnings = [];
+
+  if (!envelope.declared) {
+    warnings.push({
+      field: 'session.declare',
+      note: 'no envelope declared - every capability reads as off-envelope and drift is unaudited',
+    });
+    return warnings;
+  }
+
+  if (envelope.capabilities.includes('*')) {
+    warnings.push({
+      field: 'capabilities',
+      note: 'grants "*" - every capability is in-envelope, so the staircase detector can never fire',
+    });
+  }
+  if (envelope.egress.allow.includes('*')) {
+    warnings.push({
+      field: 'egress.allow',
+      note: 'allows "*" - every host is in-envelope, so off-envelope egress can never fire',
+    });
+  }
+  if (envelope.budget.max_probe_ratio >= 1) {
+    warnings.push({
+      field: 'budget.max_probe_ratio',
+      note: 'set to 1 or above - no failure ratio can exceed it, so recon can never fire',
+    });
+  }
+  for (const key of ['max_distinct_hosts', 'max_instances']) {
+    if (envelope.budget[key] >= ABSURD_BUDGET) {
+      warnings.push({
+        field: `budget.${key}`,
+        note: `set to ${envelope.budget[key]} - effectively unbounded, so the corresponding detector can never fire`,
+      });
+    }
+  }
+  if (!envelope.task) {
+    warnings.push({
+      field: 'task',
+      note: 'no task stated - drift is measured against capabilities alone, with no record of intent',
+    });
+  }
+
+  return warnings;
 }
 
 /**
@@ -68,14 +132,14 @@ function hasTraversal(capability) {
 /**
  * Capability matching.
  *
- * Exact match, or a trailing `*` that matches by prefix — but the wildcard is
+ * Exact match, or a trailing `*` that matches by prefix - but the wildcard is
  * NOT allowed to silently cross a delimiter. `net:api.x*` covers `net:api.xyz`
  * and must not cover `net:api.x.evil.com`, because a pattern author writing a
  * host prefix does not thereby intend every subdomain beneath it.
  *
  * Case-sensitive on purpose. An adapter emitting `EXEC:LOCAL` against an
  * envelope granting `exec:local` produces a staircase signal rather than a
- * silent grant — noisy, but it fails closed, and over-granting is the worse
+ * silent grant - noisy, but it fails closed, and over-granting is the worse
  * error in a security envelope.
  */
 export function capabilityAllowed(capability, allowed) {

@@ -59,7 +59,7 @@ function sanitizeSeverity(raw, anomalies, signal) {
     anomalies.push({
       detector: signal.detector,
       seq: signal.seq,
-      reason: `non-finite severity ${String(raw)} — treated as 0`,
+      reason: `non-finite severity ${String(raw)} - treated as 0`,
     });
     return 0;
   }
@@ -67,7 +67,7 @@ function sanitizeSeverity(raw, anomalies, signal) {
     anomalies.push({
       detector: signal.detector,
       seq: signal.seq,
-      reason: `negative severity ${raw} — clamped to 0`,
+      reason: `negative severity ${raw} - clamped to 0`,
     });
     return 0;
   }
@@ -75,7 +75,7 @@ function sanitizeSeverity(raw, anomalies, signal) {
     anomalies.push({
       detector: signal.detector,
       seq: signal.seq,
-      reason: `severity ${raw} above 1 — clamped to 1`,
+      reason: `severity ${raw} above 1 - clamped to 1`,
     });
     return 1;
   }

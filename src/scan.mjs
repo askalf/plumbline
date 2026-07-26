@@ -6,7 +6,7 @@
  * about hundreds of sessions that were genuinely fine.
  */
 
-import { readdirSync, statSync, readFileSync } from 'node:fs';
+import { readdirSync, statSync, readFileSync, realpathSync } from 'node:fs';
 import { join, extname, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { normalizeEvent } from './schema.mjs';
@@ -41,8 +41,21 @@ export function listProfiles() {
 /** Recursively collect .jsonl files under a directory (or return the file itself). */
 export function collectTranscripts(target, { limit = Infinity } = {}) {
   const found = [];
+  // A symlink pointing at an ancestor makes statSync/readdirSync recurse
+  // forever. Track resolved paths so a cycle terminates instead of hanging the
+  // scan — a monitor that can be stalled by a crafted directory is a monitor
+  // that can be switched off by one.
+  const visited = new Set();
   const walk = (path) => {
     if (found.length >= limit) return;
+    let real;
+    try {
+      real = realpathSync(path);
+    } catch {
+      return;
+    }
+    if (visited.has(real)) return;
+    visited.add(real);
     let st;
     try {
       st = statSync(path);

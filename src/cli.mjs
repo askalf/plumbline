@@ -49,7 +49,13 @@ function parseArgs(argv) {
     else if (arg.startsWith('--only=')) opts.only = arg.slice(7).split(',').map((s) => s.trim()).filter(Boolean);
     else if (arg.startsWith('--profile=')) opts.profile = arg.slice(10);
     else if (arg.startsWith('--adapter=')) opts.adapter = arg.slice(10);
-    else if (arg.startsWith('--limit=')) opts.limit = Number(arg.slice(8));
+    else if (arg.startsWith('--limit=')) {
+      const n = Number(arg.slice(8));
+      // Number('abc') is NaN, and slice(0, NaN) is empty — a typo silently
+      // scanned nothing and reported clean.
+      if (!Number.isFinite(n) || n <= 0) throw new Error(`--limit must be a positive number, got "${arg.slice(8)}"`);
+      opts.limit = n;
+    }
     else if (arg.startsWith('-')) throw new Error(`unknown option ${arg}`);
     else positional.push(arg);
   }
@@ -151,6 +157,14 @@ function printReport(report, opts) {
       out.push('            Every capability reads as off-envelope; treat drift as unaudited.');
     }
     out.push(`  events    ${report.events}`);
+    out.push('');
+  }
+
+  if (report.envelope_warnings?.length > 0 && !opts.quiet) {
+    out.push('  *** THIS ENVELOPE DISABLES DETECTION ***');
+    for (const w of report.envelope_warnings) {
+      out.push(`      ${padRight(w.field, 26)}${w.note}`);
+    }
     out.push('');
   }
 
@@ -332,7 +346,11 @@ main().then(
     process.exitCode = code;
   },
   (err) => {
-    process.stderr.write(`plumbline: ${err.stack ?? err.message}\n`);
+    // A usage mistake gets the one sentence that helps; a genuine fault keeps
+    // its stack. Printing a stack trace for a mistyped flag buries the message.
+    const message = err?.message ?? String(err);
+    const usageError = /^(--|unknown |an empty |no such profile)/.test(message);
+    process.stderr.write(`plumbline: ${usageError ? message : (err?.stack ?? message)}\n`);
     process.exitCode = 2;
   },
 );

@@ -11,10 +11,12 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { capabilityAllowed, hostAllowed } from '../src/envelope.mjs';
+import { capabilityAllowed, hostAllowed, envelopeWarnings, normalizeEnvelope, undeclaredEnvelope } from '../src/envelope.mjs';
 import { score, levelFor } from '../src/score.mjs';
 import { reachability, classifyDeadDetectors } from '../src/reachability.mjs';
 import { assessTrajectory } from '../src/index.mjs';
+import { runDetectors } from '../src/detect/index.mjs';
+import { normalizeEvent } from '../src/schema.mjs';
 
 const sig = (seq, severity, detector = 'staircase') => ({
   detector, seq, severity, label: 'x', detail: null, evidence: {},
@@ -162,4 +164,78 @@ test('ATTACK: an unknown adapter must not be reported blind-spot-free', () => {
   assert.deepEqual(r.unknownCause, ['staircase', 'ratchet']);
   assert.deepEqual(r.blindSpots, []);
   assert.deepEqual(r.absentFromCorpus, []);
+});
+
+// ------------------------------------------------------------- interface ----
+
+test('ATTACK: a mistyped detector name must not silently check nothing', () => {
+  // FAIL-OPEN in the interface. `--only=stiarcase` filtered to an empty set,
+  // ran zero detectors, and reported clean - a typo looked like a passing scan.
+  const env = normalizeEnvelope({ task: 't', capabilities: [], egress: { allow: [] } });
+  const events = [normalizeEvent({ v: 1, session: 's', seq: 1, action: 'cred.acquire', capability_grant: ['cloud:x'] })];
+
+  assert.throws(() => runDetectors(events, env, { only: ['stiarcase'] }), /unknown detector/);
+  assert.throws(() => runDetectors(events, env, { only: [] }), /would report clean without checking/);
+  assert.equal(runDetectors(events, env, { only: ['staircase'] }).length, 1, 'a correct name still works');
+});
+
+// -------------------------------------------------------------- envelope ----
+
+test('ATTACK: a degenerate envelope must not buy a clean-looking audit', () => {
+  // The deepest limitation: an envelope granting everything silences every
+  // envelope-gated detector, and NOTHING is broken - so neither the liveness
+  // controls nor reachability can see it. 41 suspicious events scored zero.
+  // It cannot be prevented (the envelope is the operator's to write) but it can
+  // be denied the appearance of a clean audit.
+  const hostile = normalizeEnvelope({
+    task: null,
+    capabilities: ['*'],
+    egress: { mode: 'open_read', allow: ['*'] },
+    budget: { max_probe_ratio: 1, max_instances: 999999, max_distinct_hosts: 999999 },
+  });
+  const warnings = envelopeWarnings(hostile);
+  const fields = warnings.map((w) => w.field);
+
+  assert.ok(fields.includes('capabilities'), 'granting * must be flagged');
+  assert.ok(fields.includes('egress.allow'), 'allowing * must be flagged');
+  assert.ok(fields.includes('budget.max_probe_ratio'), 'an unreachable probe ratio must be flagged');
+  assert.ok(fields.includes('task'), 'a missing task statement must be flagged');
+  assert.ok(warnings.length >= 5);
+});
+
+test('a realistic envelope produces no warnings - the check must not cry wolf', () => {
+  const sane = normalizeEnvelope({
+    task: 'Triage failing tests and open a fix PR',
+    capabilities: ['exec:local', 'fs:read', 'fs:write'],
+    egress: { mode: 'open_read', allow: ['api.github.com', 'registry.npmjs.org'] },
+    budget: { max_probe_ratio: 0.4, max_instances: 4, max_distinct_hosts: 8 },
+  });
+  assert.deepEqual(envelopeWarnings(sane), []);
+});
+
+test('an undeclared envelope is warned about, not silently accepted', () => {
+  const w = envelopeWarnings(undeclaredEnvelope());
+  assert.equal(w.length, 1);
+  assert.equal(w[0].field, 'session.declare');
+});
+
+test('envelope warnings reach the report, so a caller cannot miss them', () => {
+  const hostile = jsonl(
+    { v: 1, session: 'h', seq: 0, action: 'session.declare', envelope: { task: 't', capabilities: ['*'], egress: { allow: ['*'] } } },
+    { v: 1, session: 'h', seq: 1, action: 'cred.acquire', capability_grant: ['cloud:root'] },
+  );
+  const r = assessTrajectory(hostile);
+  assert.equal(r.level, 'observe', 'the permissive envelope does silence the detector');
+  assert.ok(r.envelope_warnings.length > 0, 'but the report must say why it is clean');
+});
+
+test('every printed string is ASCII - these land in Windows consoles and CI logs', () => {
+  // Violated once already: em-dashes in anomaly reasons and warning notes.
+  for (const w of envelopeWarnings(undeclaredEnvelope())) {
+    assert.ok(!/[^\x00-\x7F]/.test(w.note), `non-ascii in warning: ${w.note}`);
+  }
+  const anomalous = score([sig(1, NaN), sig(2, -1), sig(3, 2)]);
+  for (const a of anomalous.anomalies) {
+    assert.ok(!/[^\x00-\x7F]/.test(a.reason), `non-ascii in anomaly reason: ${a.reason}`);
+  }
 });

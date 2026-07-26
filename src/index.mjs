@@ -11,7 +11,7 @@
  */
 
 import { parseTrajectory, normalizeEvent, entropyOf, TrajectoryError } from './schema.mjs';
-import { envelopeFrom, normalizeEnvelope, undeclaredEnvelope } from './envelope.mjs';
+import { envelopeFrom, normalizeEnvelope, undeclaredEnvelope, envelopeWarnings } from './envelope.mjs';
 import { runDetectors, DETECTORS, DETECTOR_IDS } from './detect/index.mjs';
 import { score, levelFor, earliestActionable, LEVELS, DEFAULT_THRESHOLDS } from './score.mjs';
 import { reachability, summarizeReachability, fieldCensus, DEPENDENCIES, FIELDS } from './reachability.mjs';
@@ -42,6 +42,13 @@ export function assess(events, { envelope = null, only = null, thresholds = DEFA
      * bug this project shipped and then caught three times.
      */
     reachability: reach,
+    /**
+     * Ways this envelope disables detection. Non-empty means a clean verdict may
+     * reflect a permissive policy rather than safe behaviour — the one failure
+     * mode neither the liveness controls nor reachability can see, because
+     * nothing is broken.
+     */
+    envelope_warnings: envelopeWarnings(env),
   };
 }
 
@@ -58,6 +65,7 @@ export {
   envelopeFrom,
   normalizeEnvelope,
   undeclaredEnvelope,
+  envelopeWarnings,
   runDetectors,
   DETECTORS,
   DETECTOR_IDS,
