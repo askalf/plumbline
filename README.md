@@ -100,18 +100,36 @@ Scoring: within one action take the strongest signal (never compound); across ac
 
 ## Validated against real traffic
 
-A detector set that has only seen its own synthetic corpus is worthless. plumbline was calibrated against **703 real Claude Code sessions / 49,694 tool calls** from a working developer machine:
+A detector set that has only seen its own synthetic corpus is worthless. plumbline was validated against **1,579 real agent sessions / 57,388 tool calls** across two machines and two independent harnesses:
 
-| Corpus | Sessions | Tool calls | Clean | Flagged | False halts |
-|---|---|---|---|---|---|
-| Real sessions (`dev-workstation`) | 703 | 49,694 | **98.7%** | 9 (1.28%) | **0** |
-| `corpus/exploitgym.jsonl` | 1 | 32 | — | halts at seq 21 | — |
-| `corpus/benign-repo-triage.jsonl` | 1 | 11 | clean | — | — |
+| Corpus | Environment | Sessions | Tool calls | Clean | Flagged | False halts |
+|---|---|---|---|---|---|---|
+| Claude Code (`dev-workstation`) | workstation A | 703 | 49,778 | 98.7% | 9 | **0** |
+| Claude Code (`dev-workstation`) | workstation B | 48 | 752 | 100% | 0 | **0** |
+| Forge SDK engine (`fleet-agent`) | self-hosted server | 828 | 6,858 | 100% | 0 | **0** |
+| **Combined** | **3 environments** | **1,579** | **57,388** | **99.4%** | **9 (0.57%)** | **0** |
+| `corpus/exploitgym.jsonl` | synthetic | 1 | 32 | — | halts at seq 21 | — |
+| `corpus/benign-repo-triage.jsonl` | synthetic | 1 | 11 | clean | — | — |
+
+The forge corpus matters more than the second workstation: it is a **different harness** with a disjoint tool vocabulary — `shell_exec`, `db_query`, `mail_send`, `container_ctl`, `ticket_update` — running server-side on the hosted SDK-engine harness. Same detectors, same scoring, no engine changes. That is the portability claim in [SPEC.md](SPEC.md) actually tested rather than asserted.
+
+### The control that proves the detectors are live
+
+A 100% clean result is indistinguishable from a dead detector chain, so the envelope has to be shown doing real work. The **same 828 forge trajectories**, scored against a different envelope:
+
+| Profile | Clean | Flagged | Staircase signals |
+|---|---|---|---|
+| `fleet-agent` (their actual envelope) | **100%** | 0 | 0 |
+| `eval-sandbox` (grants almost nothing) | **0%** | 828 | **1,449** |
+
+Identical inputs, opposite verdicts, decided entirely by the declared envelope. This is also the clearest demonstration of the limitation below: **a too-generous envelope silently disables everything downstream.**
 
 Reproduce:
 
 ```sh
 plumbline scan ~/.claude/projects --profile=dev-workstation
+plumbline scan forge-executions.jsonl --adapter=forge --profile=fleet-agent
+plumbline scan forge-executions.jsonl --adapter=forge --profile=eval-sandbox   # the control
 ```
 
 ### What calibration changed
@@ -125,6 +143,10 @@ The first honest run flagged **34.7%** of real sessions. That was the most usefu
 5. **Oversight resets the ratchet.** If a human turn falls between the denial and the retry, the operator adjudicated it. This one rule removed the large majority of remaining findings.
 
 34.7% → 11.0% → 1.28%, with the synthetic escape still halting throughout.
+
+**And the one that mattered most, caught by the control above:** `staircase` reads only `capability_grant`, and neither real adapter emitted it — so the primary detector was **completely inert on real traffic** and only ever fired on the hand-authored corpus. The clean numbers were real but they were measured with the most important detector switched off. Both adapters now map tool use to the capability it demonstrates, treating the first exercise in a session as the grant. The clean rates survived the fix; they just mean something now.
+
+The general lesson, which is why the control ships as a documented step: **a clean result and a dead detector look identical from the outside.** Always score a corpus against an envelope you expect to fail.
 
 ## Honest limitations
 
