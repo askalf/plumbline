@@ -468,9 +468,9 @@ plumbline scan audit.jsonl      --adapter=redstamp  --profile=redstamp-guarded</
 
   // hero drift canvas: a plumb line (true vertical) with the trajectory drifting
   // off it, colour-ramping observe->halt, settling at a halt marker.
-  var cv = document.getElementById('driftCv'), cap = document.getElementById('driftCap');
+  var cv = document.getElementById('driftCv');
   if (cv && cv.getContext) {
-    var ctx = cv.getContext('2d'), W = cv.width, H = cv.height, DPR = 1;
+    var ctx = cv.getContext('2d'), W = cv.width, H = cv.height;
     function css(v){ return getComputedStyle(root).getPropertyValue(v).trim(); }
     // the ExploitGym drift path: [t, drift 0..1, level]
     var path = [[0.10,0.0,0],[0.24,0.07,0],[0.40,0.33,1],[0.56,0.71,2],[0.68,0.86,3],[0.82,0.99,3],[0.95,1.0,3]];

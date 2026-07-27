@@ -139,11 +139,6 @@ function printSummary(summary, scan) {
   return out.join('\n');
 }
 
-function pad(value, width) {
-  const s = String(value);
-  return s.length >= width ? s : ' '.repeat(width - s.length) + s;
-}
-
 function padRight(value, width) {
   const s = String(value);
   return s.length >= width ? s : s + ' '.repeat(width - s.length);
