@@ -13,7 +13,7 @@ cd "$SRC/plumbline"
 # install it transiently (pinned, --no-save) so it never becomes a committed
 # dependency and never enters the published package. The fuzz targets in ./fuzz
 # import only from ../src, so no project install is needed beyond Jazzer itself.
-npm install --no-save --no-audit --no-fund @jazzer.js/core@4.2.1
+npm install --no-save --no-audit --no-fund @jazzer.js/core@4.0.0
 
 # --sync: every target's fuzz() is synchronous (assessTrajectory, buildTrajectory
 # and normalizeEvent are all sync). An async target would omit this flag.
