@@ -1,0 +1,24 @@
+version: 2
+updates:
+  # plumbline ships zero runtime dependencies, so the npm ecosystem here only
+  # ever moves devDependencies / tooling — but keeping it wired means a future
+  # dev tool can't quietly rot, and Dependabot alerts stay active.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    # One PR per run — a split bump of codeql-action/init vs /analyze creates a
+    # version mismatch that fails the CodeQL workflow.
+    groups:
+      actions:
+        patterns:
+          - "*"
