@@ -103,7 +103,7 @@ jobs:
         if: steps.gate.outputs.skip != 'true' && steps.bumped.outputs.skip != 'true'
         run: |
           set -euo pipefail
-          npm install --no-audit --no-fund
+          npm ci --no-audit --no-fund
           npm test
 
       - name: Extract release notes from CHANGELOG
