@@ -6,7 +6,13 @@
 
 <p>
   <a href="https://www.npmjs.com/package/@askalf/plumbline"><img src="https://img.shields.io/npm/v/@askalf/plumbline?color=c9a227&label=npm&logo=npm" alt="npm version"></a>
+  <a href="https://github.com/askalf/plumbline/releases"><img src="https://img.shields.io/github/v/release/askalf/plumbline?color=c9a227&label=release&logo=github" alt="Latest release"></a>
   <a href="https://github.com/askalf/plumbline/actions/workflows/ci.yml"><img src="https://github.com/askalf/plumbline/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/askalf/plumbline/actions/workflows/codeql.yml"><img src="https://github.com/askalf/plumbline/actions/workflows/codeql.yml/badge.svg" alt="CodeQL"></a>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/askalf/plumbline"><img src="https://api.scorecard.dev/projects/github.com/askalf/plumbline/badge" alt="OpenSSF Scorecard"></a>
+  <!-- OpenSSF Best Practices — uncomment once enrolled at https://www.bestpractices.dev and replace PROJECT_ID:
+  <a href="https://www.bestpractices.dev/projects/PROJECT_ID"><img src="https://www.bestpractices.dev/projects/PROJECT_ID/badge" alt="OpenSSF Best Practices"></a>
+  -->
   <a href="https://github.com/askalf/plumbline/blob/main/LICENSE"><img src="https://img.shields.io/npm/l/@askalf/plumbline?color=c9a227" alt="License"></a>
   <img src="https://img.shields.io/badge/runtime%20deps-0-c9a227" alt="Zero runtime dependencies">
   <a href="https://www.npmjs.com/package/@askalf/plumbline"><img src="https://img.shields.io/npm/dm/@askalf/plumbline?color=c9a227" alt="Downloads"></a>
@@ -15,7 +21,7 @@
 
 <p><strong>Score the sequence, not the step.</strong></p>
 
-<sub><code>npm i -g @askalf/plumbline</code> · <strong>0</strong> runtime dependencies · MIT · out-of-band &amp; read-only — it never blocks an action · the optional intent layer runs on a <strong>local</strong> model, by design</sub>
+<sub><code>npm i -g @askalf/plumbline</code> · <strong>0</strong> runtime dependencies · <a href="https://www.npmjs.com/package/@askalf/plumbline">SLSA-attested</a> every release · MIT · out-of-band &amp; read-only — it never blocks an action · the optional intent layer runs on a <strong>local</strong> model, by design</sub>
 
 </div>
 
