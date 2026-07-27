@@ -1,0 +1,51 @@
+# ClusterFuzzLite — continuous fuzzing of plumbline's trust boundary: the
+# places that parse UNTRUSTED input. An agent's trajectory log and its tool
+# names/arguments are attacker-influenced, and a monitor that can be crashed by
+# a crafted log is a monitor that can be blinded. Three targets:
+#   assess_trajectory — the full parse -> score pipeline over raw JSONL bytes;
+#                        may only ever raise the controlled TrajectoryError.
+#   infer_capability  — the agentlog capability inference over hostile tool
+#                        names/arguments; it has no throw contract at all.
+#   normalize_event   — schema normalization over arbitrary JSON, plus the
+#                        invariant that entropyOf never returns NaN (a NaN
+#                        severity once made an escape read as "observe").
+# Runs weekly + on demand; a discovered crash fails the job and is uploaded as
+# an artifact. Targets live in ./fuzz, built by .clusterfuzzlite/build.sh
+# (Jazzer.js). OpenSSF Scorecard credits the Fuzzing check from the
+# .clusterfuzzlite/ config.
+name: ClusterFuzzLite
+
+on:
+  schedule:
+    - cron: '17 3 * * 1' # weekly, Monday 03:17 UTC (staggered off the :00 grid)
+  workflow_dispatch:
+
+permissions: read-all
+
+jobs:
+  Fuzzing:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # JavaScript (Jazzer.js) has no native sanitizer — OSS-Fuzz rejects
+        # address/memory/undefined for JS ("cannot be fuzzed with sanitizers"),
+        # and the action's config rejects `none`. `coverage` is the value real
+        # JS ClusterFuzzLite projects use with this action version.
+        sanitizer: [coverage]
+    steps:
+      - name: Build fuzzers (${{ matrix.sanitizer }})
+        id: build
+        uses: google/clusterfuzzlite/actions/build_fuzzers@884713a6c30a92e5e8544c39945cd7cb630abcd1 # v1
+        with:
+          language: javascript
+          sanitizer: ${{ matrix.sanitizer }}
+      - name: Run fuzzers (${{ matrix.sanitizer }})
+        id: run
+        uses: google/clusterfuzzlite/actions/run_fuzzers@884713a6c30a92e5e8544c39945cd7cb630abcd1 # v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          fuzz-seconds: 300
+          mode: 'batch'
+          language: javascript
+          sanitizer: ${{ matrix.sanitizer }}
