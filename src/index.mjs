@@ -3,9 +3,9 @@
  *
  * Per-action authorization is necessary and insufficient. An escape can be
  * composed entirely of individually-authorized steps, which is precisely what
- * happened when OpenAI's models left an evaluation sandbox in July 2026 and
- * reached a third party's production infrastructure. Every step was permitted.
- * The sequence was the attack.
+ * happened in July 2026 when two models under a cyber-capability evaluation
+ * left their sandbox and reached a third party's production infrastructure.
+ * Every step was permitted. The sequence was the attack.
  *
  * plumbline scores the sequence against the job it was supposed to be doing.
  */
