@@ -1,6 +1,6 @@
 {
   "name": "@askalf/plumbline",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "trajectory-level monitoring for autonomous agents — scores an action sequence against its declared intent, catching escapes composed entirely of individually-authorized steps. Part of Own Your Stack.",
   "type": "module",
   "license": "MIT",
