@@ -8,11 +8,12 @@
 # while entropyOf never returns NaN.
 cd "$SRC/plumbline"
 
-# plumbline ships ZERO runtime dependencies and, by design, no lockfile — so
-# there is nothing to `npm ci`. Jazzer.js is a fuzz-build-time-only tool:
-# install it transiently (pinned, --no-save) so it never becomes a committed
-# dependency and never enters the published package. The fuzz targets in ./fuzz
-# import only from ../src, so no project install is needed beyond Jazzer itself.
+# plumbline ships ZERO runtime dependencies, so its committed lockfile installs
+# nothing — `npm ci` here would be a no-op. Jazzer.js is a fuzz-build-time-only
+# tool: install it transiently (pinned, --no-save) so it never becomes a
+# committed dependency, never enters the lockfile, and never enters the
+# published package. The fuzz targets in ./fuzz import only from ../src, so no
+# project install is needed beyond Jazzer itself.
 npm install --no-save --no-audit --no-fund @jazzer.js/core@4.0.0
 
 # --sync: every target's fuzz() is synchronous (assessTrajectory, buildTrajectory
