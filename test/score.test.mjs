@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { score, levelFor, earliestActionable, DEFAULT_THRESHOLDS } from '../src/score.mjs';
+import { score, levelFor, earliestActionable } from '../src/score.mjs';
 
 const sig = (seq, severity, detector = 'staircase') => ({
   detector,

@@ -7,7 +7,7 @@ import {
   reachability, fieldCensus, summarizeReachability,
   DEPENDENCIES, FIELDS, ADAPTER_CAPABILITIES, classifyDeadDetectors,
 } from '../src/reachability.mjs';
-import { normalizeEvent, parseTrajectory } from '../src/schema.mjs';
+import { normalizeEvent } from '../src/schema.mjs';
 import { assessTrajectory } from '../src/index.mjs';
 import { DETECTOR_IDS } from '../src/detect/index.mjs';
 
