@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Without this file, Cloudflare Pages answers /sitemap.xml with the index.html
+  fallback: HTTP 200 carrying HTML where a crawler expects XML, which is worse
+  than a clean 404 because it parses as a malformed sitemap rather than an
+  absent one. Two real pages, so it stays hand-written.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://plumbline.sprayberrylabs.com/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://plumbline.sprayberrylabs.com/demo-semantic.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+</urlset>
