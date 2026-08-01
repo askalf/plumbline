@@ -109,13 +109,23 @@ export const ADAPTER_CAPABILITIES = {
     blind: [],
   },
   forge: {
+    // DENIED stays out of `emits` deliberately, even though the adapter can now
+    // derive it from per-call output/is_error. This table only classifies
+    // detectors already found dead over a corpus: when the dump DOES carry
+    // outcomes and something was refused, ratchet is reachable and never
+    // reaches this code. So the one case left is a corpus with no denials —
+    // which is either "your dump omitted outcomes" or "nothing was refused",
+    // and those are indistinguishable from here. Reporting it as a blind spot
+    // over-warns; the alternative, "not exercised — expected, not a defect",
+    // would under-warn on a starved detector. Over-warning is the safe error.
     emits: Object.values(FIELDS).filter((f) => f !== FIELDS.DENIED && f !== FIELDS.HUMAN_TURN),
     blind: [
       {
         field: FIELDS.DENIED,
         detectors: ['ratchet'],
-        reason: 'forge execution records carry tool_calls without per-call outcomes, '
-          + 'so a refused call is indistinguishable from a successful one',
+        reason: 'no refused call was seen in this corpus — either the dump omitted '
+          + 'per-call outcomes (re-dump with output/is_error to make ratchet '
+          + 'reachable) or nothing was refused; from here those look identical',
       },
       {
         field: FIELDS.HUMAN_TURN,

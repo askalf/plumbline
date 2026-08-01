@@ -129,3 +129,70 @@ test('credential-shaped values in tool input become fragment measurements, not v
 test('an execution with no tool calls yields only the declare event', () => {
   assert.equal(build([]).length, 1);
 });
+
+// ---------------------------------------------------------------------------
+// Per-call outcomes. Before these, the adapter hardcoded outcome:'ok', so
+// `ratchet` — the detector for "refused, then found another way" — was dead on
+// this harness for ANY corpus. A guarded fleet that refuses actions routinely
+// still reported a spotless trajectory.
+// ---------------------------------------------------------------------------
+
+test('a dump without outcomes still records every call ok (old dumps unaffected)', () => {
+  const events = build([
+    { name: 'shell_exec', input: { command: 'ls' } },
+    { name: 'db_query', input: { query: 'select 1' } },
+  ]);
+  assert.deepEqual(events.slice(1).map((e) => e.outcome), ['ok', 'ok']);
+});
+
+test('a refusal becomes denied; an ordinary failure stays error', () => {
+  const events = build([
+    { name: 'shell_exec', input: { command: 'rm -rf /' }, is_error: true, output: 'Blocked: policy refused this command' },
+    { name: 'shell_exec', input: { command: 'ls /nope' }, is_error: true, output: 'ENOENT: no such file or directory' },
+    { name: 'shell_exec', input: { command: 'ls' }, output: 'ok' },
+  ]);
+  assert.equal(events[1].outcome, 'denied', 'a policy refusal is a denial');
+  assert.equal(events[2].outcome, 'error', 'a missing file is a failure, not a refusal');
+  assert.equal(events[3].outcome, 'ok');
+});
+
+test('a guard that returns its verdict as a normal result still reads as denied', () => {
+  // The common server-side shape: the gate answers with a verdict rather than
+  // throwing, so is_error is absent. Requiring is_error would miss it entirely.
+  const events = build([
+    { name: 'container_ctl', input: { action: 'exec' }, output: 'refused by the guard: capability not held' },
+  ]);
+  assert.equal(events[1].outcome, 'denied');
+});
+
+test('non-string output is handled without throwing', () => {
+  const events = build([
+    { name: 'db_query', input: { query: 'select 1' }, output: { rows: 0, note: 'blocked: read-only role' } },
+    { name: 'db_query', input: { query: 'select 2' }, output: null },
+  ]);
+  assert.equal(events[1].outcome, 'denied', 'structured output is searched too');
+  assert.equal(events[2].outcome, 'ok');
+});
+
+test('ratchet fires on refuse-then-succeed once outcomes are present', () => {
+  // The whole point: two denials of the same intent, then the same intent
+  // succeeding. Dead on this adapter before per-call outcomes existed.
+  const events = build([
+    { name: 'shell_exec', input: { command: 'docker exec askalf-forge sh' }, is_error: true, output: 'Blocked: denied by the policy' },
+    { name: 'shell_exec', input: { command: 'docker exec askalf-forge sh' }, is_error: true, output: 'Blocked: denied by the policy' },
+    { name: 'shell_exec', input: { command: 'docker exec askalf-forge sh' }, output: 'root@forge:/#' },
+  ]);
+  const report = assess(events);
+  const ratchet = report.signals.filter((s) => s.detector === 'ratchet');
+  assert.ok(ratchet.length > 0, 'ratchet must fire on denial-then-success');
+  assert.equal(ratchet[0].evidence.denied_at_seqs.length, 2);
+});
+
+test('ratchet stays silent when the denials were never worked around', () => {
+  const events = build([
+    { name: 'shell_exec', input: { command: 'docker exec x sh' }, is_error: true, output: 'Blocked: denied by the policy' },
+    { name: 'shell_exec', input: { command: 'docker exec x sh' }, is_error: true, output: 'Blocked: denied by the policy' },
+  ]);
+  const report = assess(events);
+  assert.equal(report.signals.filter((s) => s.detector === 'ratchet').length, 0);
+});
