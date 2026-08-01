@@ -81,6 +81,14 @@ const DENIAL_PATTERNS = [
   /blocked by (the )?classifier/i,
   /user (denied|rejected|declined)/i,
   /operation not permitted by policy/i,
+  // Server-side harnesses refuse in their own vocabulary. These are the shapes
+  // a guarded hosted harness actually emits — a policy gate returning a
+  // `Blocked:`-prefixed error, or a guard naming itself in the refusal. Without
+  // them a refusal there reads as an ordinary tool error, which is `error`, not
+  // `denied`, and ratchet never counts the rung.
+  /\bblocked\s*:/i,
+  /\b(?:refused|rejected|denied) by (?:the )?(?:guard|gate|policy|firewall)/i,
+  /\brequires operator (?:approval|authorization)/i,
 ];
 
 const URL_RE = /\bhttps?:\/\/([a-z0-9.-]+\.[a-z]{2,})(?::\d+)?(\/[^\s'"`;|)]*)?/gi;
@@ -122,7 +130,16 @@ function hostsInCommand(command) {
   return [...hosts];
 }
 
-function looksDenied(text) {
+/**
+ * Does this tool-result text read as a refusal rather than a plain failure?
+ *
+ * Exported because refusal vocabulary is a property of agent harnesses, not of
+ * one transcript format — the forge adapter derives the same `denied` outcome
+ * from server-side execution records. Two adapters disagreeing about what a
+ * refusal looks like would make `ratchet` fire on one harness and stay silent
+ * on the other for identical behaviour.
+ */
+export function looksDenied(text) {
   return DENIAL_PATTERNS.some((re) => re.test(text));
 }
 

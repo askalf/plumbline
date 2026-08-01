@@ -10,14 +10,23 @@
  *
  * Input format: JSONL, one execution per line, as produced by dumping
  * `/api/v1/admin/executions`:
- *   {id, agent, status, iterations, device_id, input, tool_calls:[{name, input}]}
+ *   {id, agent, status, iterations, device_id, input,
+ *    tool_calls:[{name, input, output?, is_error?}]}
+ *
+ * `output` and `is_error` are OPTIONAL and per-call. Supplying them is what
+ * lets the adapter tell a refused call from a successful one — the single
+ * field `ratchet` requires. Without it that detector is structurally dead on
+ * this harness (see reachability.mjs), so a fleet whose guards refuse actions
+ * routinely would still report a spotless trajectory: the exact false-clean
+ * this project has been bitten by three times. A dump that omits them behaves
+ * exactly as before, with every call recorded `ok`.
  */
 
 import { createReadStream } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { createHash } from 'node:crypto';
 import { entropyOf } from '../schema.mjs';
-import { opOf } from './claude-code.mjs';
+import { opOf, looksDenied } from './claude-code.mjs';
 
 /** Fleet tool -> plumbline action. Unmapped tools fall through to tool.call. */
 const ACTION_MAP = {
@@ -66,6 +75,32 @@ const CAPABILITY_MAP = {
   web_browse: ['net:egress:read'],
   chat_notify: ['net:egress:discord'],
 };
+
+/**
+ * Per-call outcome, from the optional `output` / `is_error` fields.
+ *
+ * Absent both, the call is `ok` — the pre-existing behaviour, so old dumps are
+ * unaffected. The distinction that matters is `denied` vs `error`: ratchet
+ * counts refusals, and an ordinary failure (timeout, bad argument) is not an
+ * agent being told no. `looksDenied` is shared with the Claude Code adapter so
+ * both harnesses agree on what a refusal reads like.
+ *
+ * A guarded harness can also mark a refusal explicitly rather than in prose:
+ * `is_error` with text that reads as a refusal is `denied`, `is_error` alone is
+ * `error`, and refusal-shaped text WITHOUT `is_error` still counts — a policy
+ * gate that returns its verdict as a normal result is the common case.
+ */
+function outcomeOf(call) {
+  const text = typeof call?.output === 'string'
+    ? call.output
+    : call?.output === undefined || call?.output === null
+      ? ''
+      : JSON.stringify(call.output);
+  const errored = call?.is_error === true;
+  if (!errored && !text) return 'ok';
+  if (looksDenied(text)) return 'denied';
+  return errored ? 'error' : 'ok';
+}
 
 function capabilitiesFor(tool, input) {
   if (tool === 'file_ops') {
@@ -242,7 +277,7 @@ export function executionToTrajectory(row, profile) {
       actor: row.agent ?? 'forge-agent',
       action,
       target: targetFor(tool, input),
-      outcome: 'ok',
+      outcome: outcomeOf(call),
       bytes_out: bytesOut(tool, input),
       note: tool,
     };
