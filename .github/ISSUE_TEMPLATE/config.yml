@@ -1,0 +1,16 @@
+# blank_issues_enabled stays TRUE on purpose: a template that does not fit is a
+# reason to file a plain issue, not a reason to give up. The templates exist to
+# make the common reports good, not to gate the uncommon ones.
+blank_issues_enabled: true
+contact_links:
+  - name: Report a security vulnerability (private)
+    url: https://github.com/askalf/plumbline/security/advisories/new
+    about: >
+      Never file a vulnerability as a public issue. Private advisories let us
+      ship a fix before the details are public — see SECURITY.md.
+
+  - name: An agent trajectory you believe is a real, novel escape
+    about: >
+      Do not publish a working escape sequence as a public issue. Use the
+      private advisory so a scoring rule can land before the shape is public.
+    url: https://github.com/askalf/plumbline/security/advisories/new
