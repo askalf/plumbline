@@ -1,0 +1,81 @@
+name: False positive — plumbline scored a benign trajectory as an escape
+description: A run plumbline flags where the sequence was legitimate work, not an escape assembled from approved actions.
+title: 'false positive: '
+labels: ['false positive', 'detection']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        plumbline scores the **sequence against the job the agent was given**, so
+        a false positive here is usually one of two things: the trajectory really
+        was unusual but legitimate, or the stated job was narrower than the work
+        actually required. Both are worth fixing and they need different changes
+        — the second is a scoring problem, not a detection one.
+
+        It is out-of-band and read-only by design, so a false positive costs
+        attention rather than a blocked action. That makes these reports cheap to
+        file and genuinely useful.
+
+  - type: textarea
+    id: log
+    attributes:
+      label: The agent log, or a reduced version of it
+      description: >
+        The envelope plumbline read. Redact freely — paths, hostnames and
+        arguments can all be replaced, as long as the SHAPE of the sequence
+        survives, since the shape is what gets scored.
+      render: text
+    validations:
+      required: true
+
+  - type: input
+    id: job
+    attributes:
+      label: The job the agent was given
+      description: The stated task the trajectory is scored against.
+      placeholder: 'update the changelog for the 0.4 release'
+    validations:
+      required: true
+
+  - type: textarea
+    id: verdict
+    attributes:
+      label: plumbline's output
+      description: >
+        The score and the contributing judges — `plumbline scan <log> --json` is
+        ideal. Please say which profile was active: profiles differ in what they
+        treat as in-scope, so the same trajectory scores differently under each.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Why the sequence was legitimate
+      description: >
+        The most useful reports name which step looks wrong and what it was
+        actually for — "reading that config file is how the tool discovers its
+        own settings", "the outbound request goes to our own registry".
+    validations:
+      required: true
+
+  - type: dropdown
+    id: layer
+    attributes:
+      label: Was the optional intent layer running
+      description: It runs on a local model, so its verdicts are not reproducible from the log alone.
+      options:
+        - 'No — deterministic judges only'
+        - 'Yes'
+        - 'Not sure'
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: plumbline version
+      placeholder: 'x.y.z'
+    validations:
+      required: false
