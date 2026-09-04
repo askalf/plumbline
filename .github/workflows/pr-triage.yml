@@ -51,8 +51,8 @@ jobs:
               /(^|\/)package-lock\.json$/,
               /(^|\/)requirements-.*\.txt$/,
               /(^|\/)go\.sum$/,
-              /^arena\/corpus.*\.json$/,
-              /^arena\/.*-results\.json$/,
+              /^corpus\/.*\.jsonl$/,
+              /^eval\/.*-results\.json$/,
             ];
             const files = await github.paginate(github.rest.pulls.listFiles, {
               owner, repo, pull_number: number, per_page: 100,
