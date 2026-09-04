@@ -5,9 +5,10 @@ body:
   - type: markdown
     attributes:
       value: |
-        For a **missed injection** or a **wrong flag**, please use the
-        false-positive template or the security advisory link instead — those
-        need different information than a crash does.
+        For a **score you disagree with** — a benign trajectory flagged, or a real
+        escape missed — use the false-positive template or the security advisory
+        link instead. A scoring disagreement needs the log and the job the agent
+        was given; a crash needs neither.
 
   - type: textarea
     id: what
