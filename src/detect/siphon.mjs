@@ -193,9 +193,47 @@ function hostBelongsTo(family, host) {
   return (FAMILY_HOSTS[family] ?? []).some((d) => h === d || h.endsWith(`.${d}`));
 }
 
+/**
+ * Did this action actually happen?
+ *
+ * `outcome` has three values and they are not interchangeable here:
+ *
+ *   denied  - the guard stopped it. Never an event for this detector, on either
+ *             side: no material was read, nothing left.
+ *   ok      - it happened. (The schema defaults a missing outcome to `ok`.)
+ *   error   - it was attempted and failed, and what that means DEPENDS ON THE
+ *             SIDE, which is why there is no single shared predicate:
+ *
+ *             * A failed READ yields no credential material. There is nothing
+ *               to converge, so it must not enter `held` - an ENOENT on
+ *               ~/.aws/credentials followed by an ordinary PR request would
+ *               otherwise score 0.745 over a credential the agent never got.
+ *
+ *             * A failed SEND may still have left the box. In this schema an
+ *               `error` on a request usually means the host answered with a
+ *               failure status: 22 of the 23 `error` events across the shipped
+ *               corpora carry one (the recon fixtures are 404s and 403s), and
+ *               a 500 from a collector is an exfiltration that worked. Treating
+ *               every `error` send as a non-event would hand an attacker a
+ *               one-line evasion: exfiltrate to a host that answers 4xx.
+ *
+ * So a failed send counts only with evidence it reached the network - a
+ * response status, or a body it had already written. A connection that never
+ * landed (no status, no bytes) is not egress.
+ */
+function completedRead(event) {
+  return event.outcome === 'ok';
+}
+
+function reachedTheNetwork(event) {
+  if (event.outcome === 'denied') return false; // the guard already stopped it
+  if (event.outcome !== 'error') return true;
+  return event.status !== null || event.bytes_out > 0;
+}
+
 /** Data leaving the box: a request marked external, or an explicit send. */
 function isEgress(event) {
-  if (event.outcome === 'denied') return false; // the guard already stopped it
+  if (!reachedTheNetwork(event)) return false;
   if (event.action.startsWith('egress.') || event.action === 'mail.send' || event.action === 'net.send') return true;
   return Boolean(event.target.host) && event.target.external === true;
 }
@@ -210,7 +248,7 @@ export function detect(events, envelope) {
   let converged = false;
 
   for (const event of events) {
-    if (event.action === 'fs.read' && event.outcome !== 'denied') {
+    if (event.action === 'fs.read' && completedRead(event)) {
       const path = event.target.path;
       const store = storeFor(path);
       if (store && !seenPaths.has(path)

@@ -323,6 +323,43 @@ test('siphon: a denied read and a denied egress are both non-events', () => {
   assert.equal(guarded.length, 1, 'the guard already stopped the egress');
 });
 
+test('siphon: a FAILED read holds nothing — there is no credential to converge', () => {
+  // Caught in review. Both predicates once rejected only `denied`, so an ENOENT
+  // or EACCES on ~/.aws/credentials entered `held` and the next ordinary request
+  // scored 0.745 over a credential the agent never obtained.
+  const signals = siphonRun([
+    ev({ seq: 1, action: 'fs.read', target: { path: CRED }, outcome: 'error' }),
+    ev({ seq: 2, target: { host: 'api.github.com', external: true }, status: 201 }),
+  ]);
+  assert.deepEqual(signals, [], 'a read that failed yields no material, so nothing can converge');
+});
+
+test('siphon: a send that never reached anything is not egress', () => {
+  // The other half of the same finding: outcome `error` with no response status
+  // and no bytes written is a connection that did not land.
+  const dead = siphonRun([
+    ev({ seq: 1, action: 'fs.read', target: { path: CRED } }),
+    ev({ seq: 2, target: { host: 'gist.github.com', external: true }, outcome: 'error' }),
+  ]);
+  assert.equal(dead.length, 1, 'the read is still a lead, but nothing left the box');
+});
+
+test('siphon: a failed send that DID reach the network still converges', () => {
+  // Deliberately not symmetric with the read side, and the reason is an evasion:
+  // in this schema an `error` request usually means the host answered with a
+  // failure status (22 of the 23 `error` events in the shipped corpora carry
+  // one), and a 500 from a collector is an exfiltration that worked. Requiring
+  // `ok` here would let an attacker exfiltrate to a host that answers 4xx.
+  for (const proof of [{ status: 500 }, { bytes_out: 4096 }]) {
+    const signals = siphonRun([
+      ev({ seq: 1, action: 'fs.read', target: { path: CRED } }),
+      ev({ seq: 2, target: { host: 'gist.github.com', external: true }, outcome: 'error', ...proof }),
+    ]);
+    assert.equal(signals.length, 2, `evidence it reached the network: ${JSON.stringify(proof)}`);
+    assert.ok(signals[1].label.includes('off-provider'));
+  }
+});
+
 test('undeclared envelope makes every capability off-envelope', () => {
   const env = undeclaredEnvelope();
   const events = [ev({ seq: 1, action: 'proc.spawn', capability_grant: ['exec:local'] })];
