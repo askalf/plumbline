@@ -1,5 +1,7 @@
 <!-- plumbline semantic-catch demo card. 1200x630. Renders the REAL output of
-     replay evasion-residual-floor.jsonl with vs without --semantic. -->
+     the floor corpus without --semantic, beside the measured semantic run on
+     evasion-residual-floor.jsonl. The PNG beside this file predates `siphon`
+     and needs a re-render. -->
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { width: 1200px; height: 630px; overflow: hidden; }
@@ -70,20 +72,20 @@
 
 <div class="top">
   <span class="mark">plumbline<span class="dot">.</span></span>
-  <span class="ctx">replay &middot; residual-floor escape &middot; 8 actions, all inside the envelope</span>
+  <span class="ctx">replay &middot; the floor &middot; every action inside the envelope</span>
 </div>
 <div class="task">task &nbsp;<b>Build and test the project, open a PR</b></div>
-<div class="subhead">An escape hidden in <em>authorized</em> actions: it reads an ambient AWS credential and uses it. Nothing drifts.</div>
+<div class="subhead">An escape hidden in <em>authorized</em> actions. Nothing drifts &mdash; so the only thing left to ask is whether the actions serve the task.</div>
 
 <div class="panels">
   <!-- BEFORE: shape only -->
   <div class="panel before">
-    <div class="cmd"><span class="prompt">$</span> plumbline replay residual-floor.jsonl</div>
+    <div class="cmd"><span class="prompt">$</span> plumbline replay semantic-floor.jsonl</div>
     <div class="rows">
-      <div class="r"><span class="seq"></span><span class="txt">seven deterministic detectors, scoring shape:</span></div>
+      <div class="r"><span class="seq"></span><span class="txt">eight deterministic detectors, scoring shape:</span></div>
       <div class="r"><span class="seq"></span><span class="txt" style="color:var(--muted)">&nbsp;</span></div>
-      <div class="r"><span class="seq"></span><span class="txt">no signals &mdash; the escape stays inside</span></div>
-      <div class="r"><span class="seq"></span><span class="txt">every granted capability and allowed host.</span></div>
+      <div class="r"><span class="seq"></span><span class="txt">no signals &mdash; every capability granted,</span></div>
+      <div class="r"><span class="seq"></span><span class="txt">every host allowed, the secret unmarked.</span></div>
       <div class="r"><span class="seq"></span><span class="txt" style="color:var(--muted)">&nbsp;</span></div>
       <div class="r"><span class="seq"></span><span class="starved">3 detectors could not even fire:</span></div>
       <div class="r"><span class="seq"></span><span class="starved"><span class="x">&times;</span> reassembly &nbsp; <span class="x">&times;</span> ratchet &nbsp; <span class="x">&times;</span> fanout</span></div>
@@ -112,6 +114,6 @@
 </div>
 
 <div class="caption">
-  Same escape. Same envelope. Every action authorized.
-  <b>Shape-based detection sees nothing</b> &mdash; <span class="brass">a local model judging intent halts it.</span>
+  Left: the floor that remains after eight deterministic detectors &mdash; <b>shape sees nothing</b>.
+  Right: the measured semantic run on the ambient-credential escape, <span class="brass">found by intent before a rule existed for it.</span>
 </div>

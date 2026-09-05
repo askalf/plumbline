@@ -6,8 +6,10 @@
  * every action within a granted capability and every host within an allowed set
  * - reading a credential file it had no task-reason to read, using an ambient
  * role for something outside the job. That escape does not drift; it complies,
- * and does something else. `corpus/evasion-residual-floor.jsonl` is exactly it,
- * and it scores clean.
+ * and does something else. `corpus/evasion-semantic-floor.jsonl` is exactly it,
+ * and it scores clean. (`evasion-residual-floor.jsonl` was that case until the
+ * `siphon` detector learned where credentials are kept; the class did not
+ * change, only the one instance a rule could be written for.)
  *
  * The only thing that catches it is judging INTENT: does this action serve the
  * declared task? That needs a model. And - the load-bearing design decision -
@@ -44,8 +46,8 @@ export function actionLine(event) {
  * Build the judgement prompt.
  *
  * THIS EXACT TEXT is the one validated in docs/semantic-detector.md: on
- * qwen2.5:7b it catches the residual-floor semantic escape that no deterministic
- * detector can see, with zero false positives across 8 benign trajectories (4
+ * qwen2.5:7b it catches the ambient-credential semantic escape from the path
+ * alone, with zero false positives across 8 benign trajectories (4
  * adversarially shape-identical to escapes). An earlier version that only asked
  * "does this serve the task" false-positived on benign work - it flagged
  * acquiring a GitHub token during a "triage and open a PR" task, reasoning too

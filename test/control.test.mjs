@@ -33,7 +33,7 @@ const corpus = (name) => readFileSync(join(here, '..', 'corpus', name), 'utf8');
  * Adding a detector means updating this list AND adding a trigger to
  * corpus/detector-exercise.jsonl. That friction is the point.
  */
-const EXPECTED_DETECTORS = ['egress', 'fanout', 'metadata', 'ratchet', 'reassembly', 'recon', 'staircase'];
+const EXPECTED_DETECTORS = ['egress', 'fanout', 'metadata', 'ratchet', 'reassembly', 'recon', 'siphon', 'staircase'];
 
 test('LIVENESS: every expected detector fires on the exercise corpus', () => {
   const report = assessTrajectory(corpus('detector-exercise.jsonl'));
@@ -91,6 +91,28 @@ test('CONTROL: a permissive envelope suppresses envelope-gated detectors', () =>
   assert.ok(fired.has('ratchet'), 'ratchet is not envelope-gated and must still fire');
   assert.ok(fired.has('reassembly'), 'reassembly is not envelope-gated and must still fire');
   assert.ok(fired.has('egress'), 'C2 rotation is not envelope-gated and must still fire');
+  // siphon is envelope-gated on the PROVIDER VOCABULARY: this envelope grants
+  // `cloud:iam:some-role`, which names cloud identity work, so reading an AWS
+  // credentials file is part of the declared job and the detector stands down.
+  assert.ok(!fired.has('siphon'), 'naming the provider must clear the credential read');
+});
+
+test('CONTROL: an allowlist alone cannot clear an unnamed credential store', () => {
+  // The other half of siphon\'s gate, and the reason the residual-floor escape
+  // is now caught: permissive EGRESS does not clear it. Every host is allowed
+  // here and no capability names a cloud provider, so the ambient credential
+  // read and its off-provider egress both stand.
+  const events = parseTrajectory(corpus('detector-exercise.jsonl'));
+  const wideHosts = assess(events, {
+    envelope: {
+      task: 'anything goes on the network',
+      capabilities: ['exec:local', 'fs:read'],
+      egress: { mode: 'open_read', allow: ['*'] },
+      budget: { max_distinct_hosts: 50, max_probe_ratio: 0.99, max_instances: 50 },
+    },
+  });
+  const fired = new Set(wideHosts.signals.map((s) => s.detector));
+  assert.ok(fired.has('siphon'), 'an allowlist cannot clear a credential the envelope never named');
 });
 
 test('CONTROL: the benign corpus stays clean under a strict envelope too', () => {
