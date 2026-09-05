@@ -35,6 +35,7 @@ export const FIELDS = {
   EXTERNAL: 'target.external',
   HOST: 'target.host',
   OP: 'target.op',
+  PATH: 'target.path',
   BYTES_OUT: 'bytes_out',
   HUMAN_TURN: 'session.turn',
 };
@@ -82,6 +83,17 @@ export const DEPENDENCIES = {
     // is reachable on any trajectory that records where requests went.
     requires: [FIELDS.HOST],
     unlocks: [],
+    calibratedBy: [],
+  },
+  siphon: {
+    // The credential store is identified by path, so a trajectory that records
+    // file access without paths starves it completely — and a corpus of shell
+    // commands whose arguments were never captured looks exactly like a corpus
+    // where nothing touched a credential.
+    requires: [FIELDS.PATH],
+    // Without egress markers the read is still reported as a lead, but the
+    // convergence that makes it a finding cannot fire.
+    unlocks: [FIELDS.EXTERNAL, FIELDS.HOST],
     calibratedBy: [],
   },
 };
@@ -256,6 +268,7 @@ export function fieldCensus(events) {
     if (e.target?.external) census[FIELDS.EXTERNAL] += 1;
     if (e.target?.host) census[FIELDS.HOST] += 1;
     if (e.target?.op) census[FIELDS.OP] += 1;
+    if (e.target?.path) census[FIELDS.PATH] += 1;
     if (e.bytes_out > 0) census[FIELDS.BYTES_OUT] += 1;
     if (e.action === 'session.turn') census[FIELDS.HUMAN_TURN] += 1;
   }

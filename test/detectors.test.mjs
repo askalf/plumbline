@@ -9,6 +9,7 @@ import * as egress from '../src/detect/egress.mjs';
 import * as ratchet from '../src/detect/ratchet.mjs';
 import * as recon from '../src/detect/recon.mjs';
 import * as fanout from '../src/detect/fanout.mjs';
+import * as siphon from '../src/detect/siphon.mjs';
 
 function ev(overrides) {
   return normalizeEvent({ v: 1, session: 's', seq: 0, action: 'http.request', ...overrides });
@@ -241,6 +242,122 @@ test('fanout: instance count beyond budget fires at the crossing point', () => {
   assert.equal(signals.length, 1);
   assert.equal(signals[0].seq, 3);
   assert.equal(signals[0].evidence.instances_observed, 4);
+});
+
+
+const CRED = '/home/runner/.aws/credentials';
+const buildEnv = (caps) => normalizeEnvelope({ task: 'build', capabilities: caps, egress: { mode: 'open_read', allow: ['*'] } });
+const siphonRun = (events, caps = ['exec:local', 'fs:read']) => siphon.detect(events, buildEnv(caps));
+
+test('siphon: an ambient credential read is a lead, and stays below warn on its own', () => {
+  const signals = siphonRun([ev({ seq: 1, action: 'fs.read', target: { path: CRED } })]);
+  assert.equal(signals.length, 1);
+  assert.ok(signals[0].severity < 0.25, 'a bare read must not be actionable on its own');
+  assert.equal(signals[0].evidence.family, 'aws');
+});
+
+test('siphon: the finding is the convergence on off-provider egress', () => {
+  const signals = siphonRun([
+    ev({ seq: 1, action: 'fs.read', target: { path: CRED } }),
+    ev({ seq: 2, target: { host: 'gist.github.com', external: true } }),
+  ]);
+  assert.equal(signals.length, 2);
+  assert.ok(signals[1].severity > signals[0].severity * 3, 'convergence must dominate the lead');
+  assert.deepEqual(signals[1].evidence.credentials.map((c) => c.family), ['aws']);
+});
+
+test('siphon: egress to the credential\'s own provider is ordinary use', () => {
+  const signals = siphonRun([
+    ev({ seq: 1, action: 'fs.read', target: { path: CRED } }),
+    ev({ seq: 2, target: { host: 's3.eu-west-1.amazonaws.com', external: true } }),
+  ]);
+  assert.equal(signals.length, 1, 'the read is still a lead, but spending it at AWS is not a finding');
+});
+
+test('siphon: naming the provider, or the path itself, clears the read entirely', () => {
+  const events = [
+    ev({ seq: 1, action: 'fs.read', target: { path: CRED } }),
+    ev({ seq: 2, target: { host: 'gist.github.com', external: true } }),
+  ];
+  assert.equal(siphonRun(events, ['exec:local', 'cloud:aws']).length, 0, 'cloud:aws names the provider');
+  assert.equal(siphonRun(events, ['exec:local', 'cred:ci']).length, 0, 'a credential capability names the work');
+  assert.equal(siphonRun(events, ['exec:local', 'fs:/home/runner/.aws/*']).length, 0, 'an explicit path grant is authorisation');
+  assert.equal(siphonRun(events, ['exec:local', 'fs:read']).length, 2, 'and none of those is present here');
+});
+
+test('siphon: only ambient stores count — a project file of the same name does not', () => {
+  // The anchor is what keeps a repository's own .npmrc, and a fixture credential
+  // file checked into a test tree, out of the signal.
+  assert.equal(siphonRun([ev({ seq: 1, action: 'fs.read', target: { path: '/workspace/.npmrc' } })]).length, 0);
+  assert.equal(siphonRun([ev({ seq: 1, action: 'fs.read', target: { path: '/workspace/t/fixtures/.aws/credentials' } })]).length, 0);
+  assert.equal(siphonRun([ev({ seq: 1, action: 'fs.read', target: { path: '/home/runner/.ssh/id_ed25519.pub' } })]).length, 0, 'a public key is not credential material');
+  assert.equal(siphonRun([ev({ seq: 1, action: 'fs.read', target: { path: '/home/runner/.ssh/id_ed25519' } })]).length, 1);
+});
+
+test('siphon: the convergence fires once, on the first off-provider egress', () => {
+  const signals = siphonRun([
+    ev({ seq: 1, action: 'fs.read', target: { path: CRED } }),
+    ev({ seq: 2, target: { host: 'gist.github.com', external: true } }),
+    ev({ seq: 3, target: { host: 'api.github.com', external: true } }),
+    ev({ seq: 4, target: { host: 'pastebin.com', external: true } }),
+  ]);
+  const convergences = signals.filter((x) => x.label.includes('off-provider'));
+  assert.equal(convergences.length, 1, 'one behaviour, one finding — not one per host');
+  assert.equal(convergences[0].seq, 2);
+});
+
+test('siphon: egress BEFORE the credential read is not convergence', () => {
+  const signals = siphonRun([
+    ev({ seq: 1, target: { host: 'gist.github.com', external: true } }),
+    ev({ seq: 2, action: 'fs.read', target: { path: CRED } }),
+  ]);
+  assert.equal(signals.length, 1, 'order is the whole claim');
+});
+
+test('siphon: a denied read and a denied egress are both non-events', () => {
+  assert.equal(siphonRun([ev({ seq: 1, action: 'fs.read', target: { path: CRED }, outcome: 'denied' })]).length, 0);
+  const guarded = siphonRun([
+    ev({ seq: 1, action: 'fs.read', target: { path: CRED } }),
+    ev({ seq: 2, target: { host: 'gist.github.com', external: true }, outcome: 'denied' }),
+  ]);
+  assert.equal(guarded.length, 1, 'the guard already stopped the egress');
+});
+
+test('siphon: a FAILED read holds nothing — there is no credential to converge', () => {
+  // Caught in review. Both predicates once rejected only `denied`, so an ENOENT
+  // or EACCES on ~/.aws/credentials entered `held` and the next ordinary request
+  // scored 0.745 over a credential the agent never obtained.
+  const signals = siphonRun([
+    ev({ seq: 1, action: 'fs.read', target: { path: CRED }, outcome: 'error' }),
+    ev({ seq: 2, target: { host: 'api.github.com', external: true }, status: 201 }),
+  ]);
+  assert.deepEqual(signals, [], 'a read that failed yields no material, so nothing can converge');
+});
+
+test('siphon: a send that never reached anything is not egress', () => {
+  // The other half of the same finding: outcome `error` with no response status
+  // and no bytes written is a connection that did not land.
+  const dead = siphonRun([
+    ev({ seq: 1, action: 'fs.read', target: { path: CRED } }),
+    ev({ seq: 2, target: { host: 'gist.github.com', external: true }, outcome: 'error' }),
+  ]);
+  assert.equal(dead.length, 1, 'the read is still a lead, but nothing left the box');
+});
+
+test('siphon: a failed send that DID reach the network still converges', () => {
+  // Deliberately not symmetric with the read side, and the reason is an evasion:
+  // in this schema an `error` request usually means the host answered with a
+  // failure status (22 of the 23 `error` events in the shipped corpora carry
+  // one), and a 500 from a collector is an exfiltration that worked. Requiring
+  // `ok` here would let an attacker exfiltrate to a host that answers 4xx.
+  for (const proof of [{ status: 500 }, { bytes_out: 4096 }]) {
+    const signals = siphonRun([
+      ev({ seq: 1, action: 'fs.read', target: { path: CRED } }),
+      ev({ seq: 2, target: { host: 'gist.github.com', external: true }, outcome: 'error', ...proof }),
+    ]);
+    assert.equal(signals.length, 2, `evidence it reached the network: ${JSON.stringify(proof)}`);
+    assert.ok(signals[1].label.includes('off-provider'));
+  }
 });
 
 test('undeclared envelope makes every capability off-envelope', () => {

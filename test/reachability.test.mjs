@@ -36,6 +36,7 @@ test('fieldCensus counts each marker independently', () => {
     ev({ instance: 'i-1' }),
     ev({ target: { host: 'h', external: true } }),
     ev({ target: { op: 'git' } }),
+    ev({ target: { path: '/w/a.mjs' } }),
     ev({ bytes_out: 10 }),
     ev({ action: 'session.turn' }),
   ]);
@@ -46,6 +47,7 @@ test('fieldCensus counts each marker independently', () => {
   assert.equal(census[FIELDS.INSTANCE], 1);
   assert.equal(census[FIELDS.EXTERNAL], 1);
   assert.equal(census[FIELDS.OP], 1);
+  assert.equal(census[FIELDS.PATH], 1);
   assert.equal(census[FIELDS.BYTES_OUT], 1);
   assert.equal(census[FIELDS.HUMAN_TURN], 1);
 });
@@ -68,6 +70,7 @@ test('trustworthy is false whenever anything is starved — the headline boolean
     ev({ consumes: ['f'], bytes_out: 10, target: { host: 'h', external: true } }),
     ev({ outcome: 'denied' }),
     ev({ instance: 'i-1' }),
+    ev({ target: { path: '/home/runner/.aws/credentials' } }),
   ]);
   assert.equal(fed.no_starved_detectors, true, JSON.stringify(fed.starved));
 });

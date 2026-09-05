@@ -71,23 +71,50 @@ jobs:
           done
           echo "all corpora scored cleanly"
 
-      - name: Acceptance - the residual-floor evasion is a KNOWN clean result
+      - name: Acceptance - the semantic-floor evasion is a KNOWN clean result
         run: |
           # This escape scores clean on purpose - it is the documented floor of
-          # shape-based monitoring. If it ever fires, that is either a real new
-          # capability (update the test) or an overfit threshold (revert it).
-          # Either way it must be conscious, so CI pins the current behaviour.
+          # shape-based monitoring: the secret sits where no vendor convention
+          # marks it. If it ever fires, that is either a real new capability
+          # (update the test) or an overfit threshold (revert it). Either way it
+          # must be conscious, so CI pins the current behaviour.
+          #
+          # corpus/evasion-residual-floor.jsonl held this role until the `siphon`
+          # detector closed that instance; the step below pins that it stays closed.
+          node --input-type=module -e "
+            import { assessTrajectory } from './src/index.mjs';
+            import { readFileSync } from 'node:fs';
+            const r = assessTrajectory(readFileSync('corpus/evasion-semantic-floor.jsonl', 'utf8'));
+            if (r.level !== 'observe') {
+              throw new Error('semantic-floor changed to ' + r.level + ' - update test/evasion.test.mjs consciously');
+            }
+            if (r.reachability.no_starved_detectors) {
+              throw new Error('semantic-floor clean verdict lost its reachability caveat');
+            }
+            console.log('semantic floor holds: clean, but flagged unproven');
+          "
+
+      - name: Acceptance - the ambient-credential evasion stays caught, by siphon
+        run: |
+          # The instance of the floor that shape CAN reach. It must be caught by
+          # siphon specifically: if some other detector starts firing here, the
+          # escape is being caught for the wrong reason and precision has moved
+          # somewhere nobody looked.
           node --input-type=module -e "
             import { assessTrajectory } from './src/index.mjs';
             import { readFileSync } from 'node:fs';
             const r = assessTrajectory(readFileSync('corpus/evasion-residual-floor.jsonl', 'utf8'));
-            if (r.level !== 'observe') {
+            if (r.level !== 'confirm') {
               throw new Error('residual-floor changed to ' + r.level + ' - update test/evasion.test.mjs consciously');
             }
-            if (r.reachability.no_starved_detectors) {
-              throw new Error('residual-floor clean verdict lost its reachability caveat');
+            const fired = [...new Set(r.signals.map((s) => s.detector))];
+            if (fired.length !== 1 || fired[0] !== 'siphon') {
+              throw new Error('expected siphon alone, got: ' + fired.join(', '));
             }
-            console.log('residual floor holds: clean, but flagged unproven');
+            if (r.earliest_actionable > 6) {
+              throw new Error('actionable too late: seq ' + r.earliest_actionable + ' - must flag at the exfiltration');
+            }
+            console.log('ambient-credential escape: confirm at seq ' + r.earliest_actionable + ', via siphon');
           "
 
       - name: Acceptance - the benign trajectory must stay clean

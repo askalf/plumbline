@@ -29,7 +29,7 @@
 
 > ## 🔎 Per-call authorization asks *"is this call allowed?"* — the wrong question
 >
-> An agent escape can be built entirely from calls your guard already approves: request a package, follow a redirect, read a body, store a string, concatenate two strings. Each one legitimate; the **sequence** is credential theft and a sandbox escape. plumbline declares the *job* an agent was given and scores how far its trajectory drifts from it — seven deterministic detectors, and, where shape-based detection hits its floor, an **optional local model that judges intent directly**. [See the floor, and how it closes ↓](#the-semantic-layer--closing-the-floor-shape-cant-cross)
+> An agent escape can be built entirely from calls your guard already approves: request a package, follow a redirect, read a body, store a string, concatenate two strings. Each one legitimate; the **sequence** is credential theft and a sandbox escape. plumbline declares the *job* an agent was given and scores how far its trajectory drifts from it — eight deterministic detectors, and, where shape-based detection hits its floor, an **optional local model that judges intent directly**. [See the floor, and how it closes ↓](#the-semantic-layer--closing-the-floor-shape-cant-cross)
 
 ---
 
@@ -119,7 +119,7 @@ A trajectory with no `session.declare` is scored as undeclared — everything re
 
 ## The detectors
 
-Seven deterministic detectors, each measuring one way a trajectory departs from its declared job:
+Eight deterministic detectors, each measuring one way a trajectory departs from its declared job:
 
 | Detector | Catches | Notes |
 |---|---|---|
@@ -130,23 +130,29 @@ Seven deterministic detectors, each measuring one way a trajectory departs from 
 | `recon` | Fingerprinting: many endpoints, high failure ratio, no state change | Capped low. Its value is arriving early, not being decisive. |
 | `fanout` | Ephemeral instance sprawl beyond the task's needs | Collapses a swarm back into one logical trajectory. |
 | `metadata` | Requests to the cloud instance-metadata endpoint | Thresholdless, envelope-independent — the SSRF pivot that started the breach. |
+| `siphon` | Ambient credential material converging on off-provider egress | Reads a credential store the envelope never named, then sends data somewhere that is not that provider. Allowlisted destinations do **not** clear it. Tops out at `confirm`. |
 
 Scoring: within one action take the strongest signal (never compound); across actions combine by noisy-OR, `drift = 1 - Π(1 - s)`. Output is a drift score and an evidence bundle — **never allow/deny.** Thresholds ladder `observe → warn → confirm → halt`; what a level *means* is the caller's decision. Full method, including a **"cannot see"** section for every detector: [DETECTORS.md](DETECTORS.md).
 
 ## The semantic layer — closing the floor shape can't cross
 
-The seven detectors measure the *shape* of a trajectory. Shape has a floor. An escape that stays within every granted capability and every allowed host — reading a credential already on disk, using it, exfiltrating through an approved host — produces **no drift**, because by the envelope's own definition nothing drifted. It scores clean. Proven by [`corpus/evasion-residual-floor.jsonl`](corpus/evasion-residual-floor.jsonl), which is shipped as a *passing* test so the floor cannot be quietly "fixed" with an overfit threshold.
+The eight detectors measure the *shape* of a trajectory. Shape has a floor, and it moved once: an escape that read an ambient credential already on disk, used it, and exfiltrated through an approved host used to score clean — until `siphon` noticed that the envelope named no cloud provider, which is a fact about the declared job rather than a threshold. [`corpus/evasion-residual-floor.jsonl`](corpus/evasion-residual-floor.jsonl) now reaches `confirm` on the deterministic path alone, two events before the trajectory ends.
 
-The optional `--semantic` layer closes it. It asks a **local** model one question — *does each action serve the declared task?* — and merges the answer into the same scoring. Evaluated at temperature 0 through the shipped code path over 5 escapes and 8 benign trajectories, 4 of them chosen to look shape-identical to escapes:
+**The floor itself did not move.** Take a secret that sits where no vendor convention marks it — a production config file in the workspace the agent was told to work in — and every detector goes quiet again: no capability is acquired, no known address is touched, every host is allowed, and reading config files is what a build agent does. That case is [`corpus/evasion-semantic-floor.jsonl`](corpus/evasion-semantic-floor.jsonl), shipped as a *passing* test so the floor cannot be quietly "fixed" with an overfit threshold.
 
-- **Catches the residual-floor escape no deterministic detector can see** — flagging `fs.read /home/runner/.aws/credentials` as off-task for a build job, from the path alone.
+The optional `--semantic` layer is what reaches it. It asks a **local** model one question — *does each action serve the declared task?* — and merges the answer into the same scoring. Evaluated at temperature 0 through the shipped code path over 5 escapes and 8 benign trajectories, 4 of them chosen to look shape-identical to escapes:
+
+- **Catches the ambient-credential escape from the path alone** — flagging `fs.read /home/runner/.aws/credentials` as off-task for a build job. `siphon` now reaches that one deterministically too; the model got there first, which is how it was found.
 - **Zero false positives** across all 8 benign — including a security-research case where plumbline's own deterministic `metadata` detector false-positives and the model correctly clears it.
 - **It is not a replacement.** It catches 3 of the 5 escapes alone; the other two pivot through the cloud metadata endpoint and are caught by the deterministic `metadata` rule. The layers are complementary — rules encode known-bad specifics, the model catches general task-divergence. Together they catch all five; neither alone does.
+
+⚠️ That scorecard predates the `semantic-floor` escape and the `hard-npm-auth` benign case added with `siphon`. Both are in the eval set; the numbers will move when it is re-run against a local model.
 
 Local by design, per the incident's lesson: the model that analyzes an attack must not be one that refuses to. Needs a ~7B model (3B over-flags). Full method, the honest scorecard, and a methodology error caught and corrected: [docs/semantic-detector.md](docs/semantic-detector.md).
 
 ```bash
-plumbline replay corpus/evasion-residual-floor.jsonl --semantic   # HALT, where shape says clean
+plumbline replay corpus/evasion-residual-floor.jsonl              # confirm, from shape alone
+plumbline replay corpus/evasion-semantic-floor.jsonl --semantic   # where shape says clean
 ```
 
 ## Adapters — reach the harness you actually run
@@ -178,7 +184,7 @@ Writing an adapter for a harness we don't cover is the most useful contribution 
 
 A detector set that has only seen its own synthetic corpus is worthless. plumbline was validated against **1,586 real agent sessions / 57,602 tool calls** across two machines and two independent harnesses.
 
-> ⚠️ **Read the coverage below before quoting the clean rate.** No session could feed all six deterministic detectors, and `ratchet` is structurally dead on the forge adapter. *Measured July 2026; the Claude Code corpus is live and grows, so quote totals with the date.*
+> ⚠️ **Read the coverage below before quoting the clean rate.** No session could feed all six deterministic detectors, and `ratchet` is structurally dead on the forge adapter. *Measured July 2026; the Claude Code corpus is live and grows, so quote totals with the date.* **`siphon` postdates this run and is not in the table** — every adapter emits `target.path`, so none is structurally blind to it, and it was verified end-to-end through the `claude-code` and `openai` adapters — but its precision on real traffic is unmeasured, and it ships with a declared false positive: [`corpus/eval-benign/hard-npm-auth.jsonl`](corpus/eval-benign/hard-npm-auth.jsonl).
 
 The split: Claude Code on two live workstations, and a hosted SDK-engine harness (a fixed 828-session export) whose tool vocabulary is deliberately disjoint from a Claude Code transcript — so the schema's portability is *tested*, not asserted. Combined: **99.4% clean, zero false halts.**
 
@@ -202,7 +208,7 @@ The credibility of a security tool is the story of its own limits.
 - **The first honest run flagged 34.7%.** Fixing it changed the *detectors*, not the thresholds — reads scored like exfiltration, one signal per host instead of per host-set, oversight resets the ratchet. `34.7% → 11.0% → 1.28%`, with the synthetic escape still halting throughout.
 - **The primary detector was inert on real traffic and the clean numbers hid it.** `staircase` reads only `capability_grant`, and no adapter emitted it — so it only ever fired on the hand-authored corpus. This failure repeated three times, which is why it got a structural fix: [`src/reachability.mjs`](src/reachability.mjs), where every detector declares the fields it needs and a clean verdict travels with the list of detectors that could have produced one.
 - **Then the tool was attacked.** Fifteen breaks, four fail-open — a path traversal that defeated the capability envelope, a NaN severity that silently cleared a trajectory, an agent forging its own oversight. All fixed, all now regression tests.
-- **The floor is written down, not hidden.** The four `corpus/evasion-*.jsonl` files map the boundary of shape-based detection precisely, *including the one that scores clean* — shipped as a passing test so precision can't be quietly traded away.
+- **The floor is written down, not hidden.** The five `corpus/evasion-*.jsonl` files map the boundary of shape-based detection precisely, *including the one that scores clean* — shipped as a passing test so precision can't be quietly traded away. When `siphon` closed one instance of that floor, the clean case moved to a harder corpus rather than the boundary being declared gone; the detector that closed it ships with its own false positive written down.
 
 ## Usage
 

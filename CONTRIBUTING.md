@@ -110,8 +110,10 @@ A detector at 0% coverage that you did **not** declare as blind is a bug in your
 
 1. `src/detect/<name>.mjs`, exporting `id` and `detect(events, envelope)`.
 2. Register it in `src/detect/index.mjs`.
-3. **Add a trigger to `corpus/detector-exercise.jsonl`.** The liveness control asserts every registered detector fires on that corpus; a detector without a trigger fails CI, which is the intended behaviour.
-4. Document it in [DETECTORS.md](DETECTORS.md) — including a **"cannot see"** section. A detector whose blind spots aren't written down invites false confidence.
+3. **Declare its dependencies in `DEPENDENCIES` (`src/reachability.mjs`).** Without one, reachability cannot reason about it and CI fails — deliberately: an undeclared detector is one that can be starved silently. If it reads a field no marker exists for yet, add the marker to `FIELDS` and count it in `fieldCensus`.
+4. **Add a trigger to `corpus/detector-exercise.jsonl`, and the id to `EXPECTED_DETECTORS` in `test/control.test.mjs`.** The liveness control asserts every registered detector fires on that corpus, against a list written out literally rather than derived from the registry; a detector without a trigger fails CI, which is the intended behaviour.
+5. Document it in [DETECTORS.md](DETECTORS.md) — including a **"cannot see"** section. A detector whose blind spots aren't written down invites false confidence.
+6. **If it fires on known locations or known addresses** (like `metadata` or `siphon`), ship the benign case it misreads as a corpus file too. A known-location rule without its declared false positive is a rule nobody can calibrate — and the false positive will be found by a user instead.
 
 Severity guidance: weak-but-early signals cap low (`recon` caps at 0.25); only evidence that something left the boundary or that the agent evaded a gate should approach halt on its own.
 

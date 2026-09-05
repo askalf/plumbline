@@ -304,7 +304,7 @@
     <div class="reveal">
       <div class="sec-eyebrow">drift, measured against declared intent</div>
       <h2 class="sec-title">Watch the escape climb</h2>
-      <p class="sec-intro">A session declares an <strong>intent envelope</strong> — the task, and the reach it legitimately needs. Seven detectors measure departure from it. Replaying a reconstruction of that incident, each bar is how far the trajectory has swung off true.</p>
+      <p class="sec-intro">A session declares an <strong>intent envelope</strong> — the task, and the reach it legitimately needs. Eight detectors measure departure from it. Replaying a reconstruction of that incident, each bar is how far the trajectory has swung off true.</p>
       <div class="replay" id="replay">
         <div class="replay-head"><span>replay &middot; exploitgym escape</span><span>drift = departure from intent</span></div>
         <div class="rrow lv-observe" style="--w:13px"><span class="rseq">15</span><span class="rval">0.07</span><span class="rtrack"><span class="rbar"></span></span><span class="rlbl"><span class="rd">recon</span> &middot; 14 endpoints probed</span></div>
@@ -323,6 +323,7 @@
         <div class="cell"><h3>recon</h3><p>Fingerprinting shape: many endpoints, high failure ratio, no state change. Its value is arriving early.</p></div>
         <div class="cell"><h3>fanout</h3><p>Ephemeral sandbox sprawl &mdash; many short-lived instances spun up to parallelize or mask the work.</p></div>
         <div class="cell special"><h3>metadata</h3><p>The cloud-metadata SSRF pivot that started the breach. Thresholdless, envelope-independent.</p></div>
+        <div class="cell special"><h3>siphon</h3><p>A credential store the envelope never named, then egress somewhere that is not that provider. An allowlisted destination does not clear it.</p></div>
       </div>
     </div>
   </section>
@@ -332,13 +333,13 @@
     <div class="reveal">
       <div class="sec-eyebrow">closing the floor</div>
       <h2 class="sec-title">The escape shape cannot see</h2>
-      <p class="sec-intro">Shape-based detection has a floor. An escape that stays inside every granted capability and allowed host — reading an ambient credential already on disk, using it, exfiltrating through an approved host — produces <em>no drift</em>. By the envelope's own definition, nothing drifted. It scores clean. The only thing that catches it judges <strong>intent</strong>: does this action serve the task? That needs a model — and, per the incident's lesson, a <strong>local</strong> one.</p>
+      <p class="sec-intro">Shape-based detection has a floor. An escape that stays inside every granted capability and allowed host produces <em>no drift</em> — by the envelope's own definition, nothing drifted, so it scores clean. The floor moved once: reading an ambient credential the envelope never accounted for is now caught deterministically, by <span class="rd">siphon</span>. It did not disappear. Put the secret somewhere no vendor convention marks — a production config file in the workspace the agent was told to work in — and shape has nothing left to measure. What is left judges <strong>intent</strong>: does this action serve the task? That needs a model — and, per the incident's lesson, a <strong>local</strong> one.</p>
       <div class="cmp">
         <div class="pane before">
-          <div class="cmd"><span class="pr">$</span> plumbline replay residual-floor.jsonl</div>
+          <div class="cmd"><span class="pr">$</span> plumbline replay semantic-floor.jsonl</div>
           <div class="body">
-            seven deterministic detectors, scoring shape:<br><br>
-            no signals — the escape stays inside every granted capability and allowed host.<br><br>
+            eight deterministic detectors, scoring shape:<br><br>
+            no signals — every capability granted, every host allowed, and the secret is a config file no convention marks.<br><br>
             <span style="color:var(--muted)">3 detectors could not even fire.</span>
           </div>
           <div class="verdict"><span class="vb">OBSERVE</span><div class="vs">clean — but 3 detectors could not fire,<br>so this is <b style="color:var(--ink-2)">unproven</b>, not safe</div></div>
@@ -350,10 +351,10 @@
             <div class="hit"><span class="hs">3</span><span class="hh">HALT</span><span>reading AWS credentials without a legitimate need</span></div>
             <div class="hit"><span class="hs">4</span><span class="hh">HALT</span><span>spawning an aws command without context of the task</span></div>
           </div>
-          <div class="verdict"><span class="vb">HALT</span> <span style="font-family:var(--mono);font-size:0.78rem;color:var(--muted)">at drift 0.98</span><div class="vs">the escape shape could not see,<br>caught by <b style="color:var(--ink-2)">intent</b></div></div>
+          <div class="verdict"><span class="vb">HALT</span> <span style="font-family:var(--mono);font-size:0.78rem;color:var(--muted)">at drift 0.98</span><div class="vs">measured on the escape <span class="rd">siphon</span> now catches too —<br>the model got there <b style="color:var(--ink-2)">first</b></div></div>
         </div>
       </div>
-      <p class="cmp-cap">Same escape. Same envelope. Every action authorized. <b>Shape-based detection sees nothing</b> — <span class="br">a local model judging intent halts it.</span></p>
+      <p class="cmp-cap">Left: the floor as it stands — every action authorized, <b>shape sees nothing</b>. Right: the measured semantic run on the ambient-credential escape, <span class="br">which is how that one was found before a rule could be written for it.</span></p>
       <p style="margin-top:1.8rem;color:var(--ink-2)">Validated at temperature 0 with <strong>zero false positives</strong> across eight benign trajectories — four built to look shape-identical to escapes (a task that legitimately reads AWS keys; one that curls the metadata endpoint because the task is <em>writing a metadata detector</em>). On that last case the model is more precise than plumbline's own deterministic detector. Honest limits, in full: the model catches 3 of 5 escapes alone — the other two are covered by a deterministic rule, and the layers are complementary. <a href="https://github.com/askalf/plumbline/blob/main/docs/semantic-detector.md">The full scorecard, and a methodology error I caught, are documented.</a></p>
     </div>
   </section>
@@ -423,7 +424,7 @@
       <p class="sec-intro">There is no portable trajectory format for agent security. Every harness invents its own log shape, so detection logic can't move between them. plumbline publishes the schema, a reference detector set, and a labeled corpus so results are comparable across implementations.</p>
       <pre><span class="c"># install, then catch the escape shape can't see</span>
 npm i -g @askalf/plumbline
-plumbline replay corpus/evasion-residual-floor.jsonl --semantic
+plumbline replay corpus/evasion-semantic-floor.jsonl --semantic
 
 <span class="c"># audit your own agent &mdash; whatever harness runs it</span>
 plumbline scan ~/.claude/projects --profile=dev-workstation
