@@ -255,13 +255,10 @@ plumbline is the trajectory monitor of **[Own Your Stack](https://github.com/ask
 
 - **[dario](https://github.com/askalf/dario)** — own your routing
 - **[hybrid](https://github.com/askalf/hybrid)** — own your inference
-- **[deepdive](https://github.com/askalf/deepdive)** — own your research
-- **[hands](https://github.com/askalf/hands)** — own your computer-use
 - **[browser-bridge](https://github.com/askalf/browser-bridge)** — own your browser
 - **[redstamp](https://github.com/askalf/redstamp)** — own your agent security
 - **[plumbline](https://github.com/askalf/plumbline)** — own your agent trajectory _(you are here)_
 - **[truecopy](https://github.com/askalf/truecopy)** — own your agent skills
-- **[strongroom](https://github.com/askalf/strongroom)** — own your agent secrets
 - **[cordon](https://github.com/askalf/cordon)** — own your prompts
 - **[fieldpass](https://github.com/askalf/fieldpass)** — own your agent browser
 - **[amnesia](https://github.com/askalf/amnesia)** — own your search
