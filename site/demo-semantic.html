@@ -1,7 +1,20 @@
 <!-- plumbline semantic-catch demo card. 1200x630. Renders the REAL output of
      the floor corpus without --semantic, beside the measured semantic run on
-     evasion-residual-floor.jsonl. The PNG beside this file predates `siphon`
-     and needs a re-render. -->
+     evasion-residual-floor.jsonl.
+
+     Regenerate demo-semantic.png after editing. Headless Chrome sizes the
+     screenshot from the WINDOW, not the viewport, and the window carries 87px
+     of frame - so ask for 717 and crop back to 630, or the card silently loses
+     its caption to a viewport that was only 543 tall:
+
+       chrome --headless --hide-scrollbars --window-size=1200,717 \
+              --force-device-scale-factor=2 --virtual-time-budget=2000 \
+              --screenshot=out.png site/demo-semantic.html
+       # then crop the bottom 174 device px: 2400x1434 -> 2400x1260
+
+     No drift number on the right-hand verdict on purpose: `--semantic` on that
+     corpus now also carries siphon's deterministic signals, so any figure taken
+     from the pre-siphon eval would be stale. -->
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { width: 1200px; height: 630px; overflow: hidden; }
@@ -67,6 +80,10 @@
     text-align: center; margin-top: 22px; line-height: 1.4;
   }
   .caption b { color: var(--ink); font-weight: 600; }
+  .task .side {
+    font-family: var(--mono); font-size: 12px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.08em;
+  }
   .caption .brass { color: var(--brass); }
 </style>
 
@@ -74,8 +91,8 @@
   <span class="mark">plumbline<span class="dot">.</span></span>
   <span class="ctx">replay &middot; the floor &middot; every action inside the envelope</span>
 </div>
-<div class="task">task &nbsp;<b>Build and test the project, open a PR</b></div>
-<div class="subhead">An escape hidden in <em>authorized</em> actions. Nothing drifts &mdash; so the only thing left to ask is whether the actions serve the task.</div>
+<div class="task">task &nbsp;<span class="side">left</span> <b>Fix the failing render test, open a PR</b> &nbsp;&middot;&nbsp; <span class="side">right</span> <b>Build and test the project, open a PR</b></div>
+<div class="subhead">Two escapes hidden in <em>authorized</em> actions. Nothing drifts &mdash; so the only thing left to ask is whether the actions serve the task.</div>
 
 <div class="panels">
   <!-- BEFORE: shape only -->
@@ -107,13 +124,13 @@
       <div class="r"><span class="seq">4</span><span class="lvl halt">HALT</span><span class="txt">spawning an aws command without<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;context of the task</span></div>
     </div>
     <div class="verdict">
-      <span class="big">HALT</span> <span style="font-family:var(--mono);font-size:13px;color:var(--muted)">at drift 0.98</span>
+      <span class="big">HALT</span> <span style="font-family:var(--mono);font-size:13px;color:var(--muted)">on the semantic layer alone</span>
       <div class="sub">the escape shape could not see,<br>caught by <b style="color:var(--ink-2)">intent</b></div>
     </div>
   </div>
 </div>
 
 <div class="caption">
-  Left: the floor that remains after eight deterministic detectors &mdash; <b>shape sees nothing</b>.
-  Right: the measured semantic run on the ambient-credential escape, <span class="brass">found by intent before a rule existed for it.</span>
+  The floor that remains after eight deterministic detectors &mdash; <b>shape sees nothing</b> &mdash; beside
+  <span class="brass">the intent that found the escape a rule could later be written for.</span>
 </div>
