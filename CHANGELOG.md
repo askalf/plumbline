@@ -16,6 +16,22 @@ notes.
 
 ### Added
 
+- **`plumbline hook` and `plumbline install-hook`**: score each session as it
+  runs, without anyone remembering to. The hook reads a harness payload on
+  stdin, scores the transcript it names, and prints one line on stderr only when
+  drift crosses a floor (`--level`, default `warn`). Three contract properties,
+  all regression-tested: it **never exits non-zero** (a non-zero Stop hook is a
+  message back into the agent's loop), it **never hangs** (a watchdog bounds any
+  async stall — found on a sandboxed filesystem where `mkdir` blocked forever
+  instead of failing, which would have wedged every turn), and it **never writes
+  to stdout** (that is the harness's channel). `install-hook` appends rather
+  than replaces, is idempotent, keeps a backup, and refuses to overwrite a
+  settings file it cannot parse.
+- `scanTranscript(..., { full: true })` returns the whole assessment, so the
+  hook can write a report for a flagged session. Off by default: a corpus scan
+  holds every result at once and a timeline per session is needless weight
+  across 1,586 of them.
+
 - **`--report[=FILE]`** on `replay` and `scan`: the same assessment as one
   self-contained HTML file. No CDN, no font fetch, no script tag — it opens on a
   machine with no network, which is where a security artifact most needs to
