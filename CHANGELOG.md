@@ -12,7 +12,7 @@ notes.
 
 ## [Unreleased]
 
-## [0.3.0] — 2026-09-11
+## [0.4.0] — 2026-09-11
 
 ### Added
 
@@ -31,6 +31,10 @@ notes.
   hook can write a report for a flagged session. Off by default: a corpus scan
   holds every result at once and a timeline per session is needless weight
   across 1,586 of them.
+
+## [0.3.0] — 2026-09-11
+
+### Added
 
 - **`--report[=FILE]`** on `replay` and `scan`: the same assessment as one
   self-contained HTML file. No CDN, no font fetch, no script tag — it opens on a
