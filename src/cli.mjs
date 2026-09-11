@@ -7,10 +7,11 @@
  * as mojibake costs more than it adds.
  */
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { assessTrajectory, assessTrajectoryWithSemantic, DETECTOR_IDS, TrajectoryError, summarizeReachability } from './index.mjs';
 import { loadProfile, listProfiles, scanCorpus, scanForgeDump, scanRedstampAudit, scanStructuredLog, summarize } from './scan.mjs';
 import { ollamaJudge, DEFAULT_MODEL } from './judges/ollama.mjs';
+import { renderSessionReport, renderScanReport } from './report.mjs';
 
 const USAGE = `plumbline - trajectory-level monitoring for autonomous agents
 
@@ -34,16 +35,32 @@ Options:
                     with PLUMBLINE_OLLAMA / PLUMBLINE_MODEL.
   --limit=N         Stop after N sessions (scan only)
   --quiet           Timeline only, no header or verdict
+  --report[=FILE]   Also write a self-contained HTML report (default
+                    plumbline-report.html). No network, no scripts - it opens
+                    anywhere. Carries the reachability caveat with the verdict,
+                    and your own hosts and paths: read it before sharing it.
   --exit-code       Exit 1 when the verdict is confirm or halt (for CI)
   -h, --help        Show this message
 
 Detectors: ${DETECTOR_IDS.join(', ')}
 `;
 
+const DEFAULT_REPORT = 'plumbline-report.html';
+
+/**
+ * Write a report and say so on stderr, never stdout: stdout is piped into other
+ * tools and a path appearing in a JSON stream breaks the caller.
+ */
+function writeReport(path, html) {
+  writeFileSync(path, html, 'utf8');
+  process.stderr.write(`plumbline: wrote ${path} - it carries hosts and paths from your logs, so read it before sharing\n`);
+}
+
 function parseArgs(argv) {
   const opts = {
     json: false, evidence: false, only: null, quiet: false,
     exitCode: false, profile: null, limit: Infinity, adapter: 'claude-code', semantic: false,
+    report: null,
   };
   const positional = [];
   for (const arg of argv) {
@@ -53,6 +70,12 @@ function parseArgs(argv) {
     else if (arg === '--exit-code') opts.exitCode = true;
     else if (arg === '--semantic') opts.semantic = true;
     else if (arg === '-h' || arg === '--help') opts.help = true;
+    else if (arg === '--report') opts.report = DEFAULT_REPORT;
+    else if (arg.startsWith('--report=')) {
+      const path = arg.slice(9);
+      if (!path) throw new Error('--report= needs a filename, or pass --report for the default');
+      opts.report = path;
+    }
     else if (arg.startsWith('--only=')) opts.only = arg.slice(7).split(',').map((s) => s.trim()).filter(Boolean);
     else if (arg.startsWith('--profile=')) opts.profile = arg.slice(10);
     else if (arg.startsWith('--adapter=')) opts.adapter = arg.slice(10);
@@ -304,6 +327,9 @@ async function main() {
     if (isTTY) process.stderr.write('\r\x1b[K');
 
     const summary = summarize(scan, { adapter: opts.adapter });
+    if (opts.report) {
+      writeReport(opts.report, renderScanReport(summary, scan, { command: `plumbline ${process.argv.slice(2).join(' ')}` }));
+    }
     if (opts.json) {
       process.stdout.write(`${JSON.stringify({ summary, results: scan.results }, null, 2)}\n`);
     } else {
@@ -351,6 +377,13 @@ async function main() {
   if (command === 'validate') {
     process.stdout.write(`ok - ${report.events} events, session ${report.session}\n`);
     return 0;
+  }
+
+  if (opts.report) {
+    writeReport(opts.report, renderSessionReport(report, {
+      command: `plumbline ${process.argv.slice(2).join(' ')}`,
+      source: file,
+    }));
   }
 
   if (opts.json) {

@@ -55,10 +55,13 @@ Now look at the individual actions:
 # install — zero runtime dependencies
 npm install -g @askalf/plumbline
 
+# what did your own coding agent actually do? read-only, nothing leaves the box
+plumbline scan ~/.claude/projects --profile=dev-workstation --report
+
 # replay a reconstruction of the incident — watch it halt before the breach
 plumbline replay corpus/exploitgym.jsonl
 
-# audit your own agent — point it at whatever harness runs it:
+# point it at whatever harness runs your agent:
 plumbline scan ~/.claude/projects    --profile=dev-workstation                  # Claude Code (default)
 plumbline scan run.json         --adapter=openai    --profile=agent             # OpenAI Agents / Chat Completions
 plumbline scan messages.json    --adapter=anthropic --profile=agent             # Anthropic Messages API
@@ -67,6 +70,19 @@ plumbline scan trace.otlp.json  --adapter=otel      --profile=agent             
 plumbline scan executions.jsonl --adapter=forge     --profile=agent             # server-side SDK-engine dump
 plumbline scan audit.jsonl      --adapter=redstamp  --profile=redstamp-guarded  # redstamp per-call audit log
 ```
+
+## The report
+
+`--report` writes the same assessment as one self-contained HTML file — no CDN, no fonts, no scripts, nothing that fetches anything when a reviewer opens it, so it survives being emailed, attached to a ticket, or read on a box with no network.
+
+```bash
+plumbline scan ~/.claude/projects --profile=dev-workstation --report=agents.html
+plumbline replay corpus/evasion-residual-floor.jsonl --report=escape.html
+```
+
+It carries two things a screenshot of a terminal does not. **The reachability caveat rides on the artifact**, in the same type size as the verdict — an exported "100% clean" that leaves behind the list of detectors that could not fire is worse than no export, because it looks authoritative. And **trajectory text is escaped, never interpolated**: paths, hosts and task strings are written by the monitored agent, and a renderer that trusted them would hand that agent a script tag in its reviewer's browser. Both are regression tests, not intentions.
+
+The file contains your own hosts, paths and task text. plumbline says so when it writes one; read it before you share it.
 
 ## Watch the escape climb
 
@@ -213,8 +229,8 @@ The credibility of a security tool is the story of its own limits.
 ## Usage
 
 ```
-plumbline replay <file.jsonl> [--semantic] [--only=a,b] [--json]
-plumbline scan   <path> [--adapter=NAME] [--profile=NAME] [--limit=N] [--exit-code]
+plumbline replay <file.jsonl> [--semantic] [--only=a,b] [--json] [--report[=FILE]]
+plumbline scan   <path> [--adapter=NAME] [--profile=NAME] [--limit=N] [--exit-code] [--report[=FILE]]
 plumbline validate <file.jsonl>      # schema-check a trajectory
 plumbline detectors                  # list detectors
 plumbline profiles                   # list envelope profiles

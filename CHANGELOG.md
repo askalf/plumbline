@@ -14,6 +14,22 @@ notes.
 
 ### Added
 
+- **`--report[=FILE]`** on `replay` and `scan`: the same assessment as one
+  self-contained HTML file. No CDN, no font fetch, no script tag — it opens on a
+  machine with no network, which is where a security artifact most needs to
+  open. Two properties are regression-tested rather than intended:
+  **the reachability caveat rides on the artifact** in the same type size as the
+  verdict (an exported "100% clean" that leaves its caveat in the terminal it
+  came from is worse than no export — it looks authoritative), and **trajectory
+  text is escaped, never interpolated** — paths, hosts and task strings are
+  written by the monitored agent, so a renderer that trusted them would hand
+  that agent a script tag in its reviewer's browser. The CLI names the file it
+  wrote on stderr, never stdout, and says that it carries your own hosts and
+  paths.
+- The README quickstart now leads with `plumbline scan ~/.claude/projects`.
+  The synthetic replay is the proof; what an agent actually did last week is
+  the reason to install anything.
+
 - **`siphon`, an eighth deterministic detector**: ambient credential material
   converging on off-provider egress. It fires when the agent reads a credential
   store for a provider its envelope never named — `~/.aws/credentials`,
