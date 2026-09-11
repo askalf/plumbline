@@ -12,6 +12,8 @@ notes.
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-09-11
+
 ### Added
 
 - **`--report[=FILE]`** on `replay` and `scan`: the same assessment as one
