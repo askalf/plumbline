@@ -8,10 +8,17 @@
  */
 
 import { readFileSync, writeFileSync } from 'node:fs';
-import { assessTrajectory, assessTrajectoryWithSemantic, DETECTOR_IDS, TrajectoryError, summarizeReachability } from './index.mjs';
-import { loadProfile, listProfiles, scanCorpus, scanForgeDump, scanRedstampAudit, scanStructuredLog, summarize } from './scan.mjs';
+import * as fsp from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+import { assessTrajectory, assessTrajectoryWithSemantic, DETECTOR_IDS, TrajectoryError, summarizeReachability, LEVELS, DEFAULT_THRESHOLDS } from './index.mjs';
+import { loadProfile, listProfiles, scanCorpus, scanForgeDump, scanRedstampAudit, scanStructuredLog, scanTranscript, summarize } from './scan.mjs';
 import { ollamaJudge, DEFAULT_MODEL } from './judges/ollama.mjs';
 import { renderSessionReport, renderScanReport } from './report.mjs';
+import {
+  parseHookPayload, shouldReport, hookLine, mergeHookConfig,
+  readSettings, writeSettings, reportPathFor,
+} from './hook.mjs';
 
 const USAGE = `plumbline - trajectory-level monitoring for autonomous agents
 
@@ -19,6 +26,10 @@ Usage:
   plumbline replay <trajectory.jsonl> [options]
   plumbline scan <dir|file> --profile=<name> [options]
   plumbline validate <trajectory.jsonl>
+  plumbline hook                       Score the session a harness hook names on
+                                       stdin. One line on stderr when drift
+                                       crosses, silence otherwise, always exit 0.
+  plumbline install-hook               Wire the hook into Claude Code settings
   plumbline detectors
   plumbline profiles
 
@@ -40,6 +51,11 @@ Options:
                     anywhere. Carries the reachability caveat with the verdict,
                     and your own hosts and paths: read it before sharing it.
   --exit-code       Exit 1 when the verdict is confirm or halt (for CI)
+  --level=NAME      Floor for hook output: observe|warn|confirm|halt (warn)
+  --report-dir=DIR  hook only: write a report for each flagged session
+  --event=NAME      install-hook only: harness event to wire (Stop)
+  --settings=PATH   install-hook only: settings file (~/.claude/settings.json)
+  --print           install-hook only: print the JSON to add, change nothing
   -h, --help        Show this message
 
 Detectors: ${DETECTOR_IDS.join(', ')}
@@ -60,7 +76,7 @@ function parseArgs(argv) {
   const opts = {
     json: false, evidence: false, only: null, quiet: false,
     exitCode: false, profile: null, limit: Infinity, adapter: 'claude-code', semantic: false,
-    report: null,
+    report: null, level: 'warn', reportDir: null, event: 'Stop', settings: null, print: false,
   };
   const positional = [];
   for (const arg of argv) {
@@ -70,6 +86,11 @@ function parseArgs(argv) {
     else if (arg === '--exit-code') opts.exitCode = true;
     else if (arg === '--semantic') opts.semantic = true;
     else if (arg === '-h' || arg === '--help') opts.help = true;
+    else if (arg === '--print') opts.print = true;
+    else if (arg.startsWith('--level=')) opts.level = arg.slice(8);
+    else if (arg.startsWith('--report-dir=')) opts.reportDir = arg.slice(13);
+    else if (arg.startsWith('--event=')) opts.event = arg.slice(8);
+    else if (arg.startsWith('--settings=')) opts.settings = arg.slice(11);
     else if (arg === '--report') opts.report = DEFAULT_REPORT;
     else if (arg.startsWith('--report=')) {
       const path = arg.slice(9);
@@ -272,6 +293,114 @@ function printReport(report, opts) {
   return out.join('\n');
 }
 
+/**
+ * Score the transcript a harness hook names on stdin.
+ *
+ * Every failure path returns 0 in silence. This runs inside someone's working
+ * session: the worst outcome is not a missed finding, it is a monitor that
+ * interrupts, breaks or slows the agent it was installed to watch.
+ */
+async function runHook(opts) {
+  // A hook runs inside a live session, so the failure that matters most is not
+  // a wrong verdict - it is never returning. Observed while building this: on
+  // one sandboxed filesystem `mkdirSync` under /proc blocked forever instead of
+  // failing, which would have wedged every turn of the session it was installed
+  // to watch. The watchdog bounds any ASYNC stall (a huge transcript, a slow or
+  // hung filesystem) and gives up in silence. It cannot preempt a synchronous
+  // syscall that never returns - nothing in-process can - which is why the
+  // optional report write below uses async fs.
+  const budget = Number(process.env.PLUMBLINE_HOOK_TIMEOUT_MS ?? 10000);
+  if (Number.isFinite(budget) && budget > 0) {
+    setTimeout(() => process.exit(0), budget).unref();
+  }
+
+  let payload;
+  try {
+    payload = parseHookPayload(await readStdin());
+  } catch {
+    return 0;
+  }
+  if (!payload?.transcriptPath) return 0;
+
+  try {
+    const profile = loadProfile(opts.profile ?? 'dev-workstation');
+    const result = await scanTranscript(payload.transcriptPath, profile, { full: Boolean(opts.reportDir) });
+    if (!result) return 0;
+    if (!LEVELS.includes(opts.level)) return 0;
+    if (!shouldReport(result.level, opts.level)) return 0;
+
+    process.stderr.write(`${hookLine(result)}\n`);
+
+    if (opts.reportDir && result.report) {
+      // An explicitly requested write is the one thing here that says so when
+      // it fails. Silence is right for a monitor nobody asked to hear from;
+      // it is wrong for a file the operator asked for and will go looking for.
+      const path = reportPathFor(opts.reportDir, result);
+      try {
+        // Async on purpose: the watchdog above can only interrupt a stall that
+        // yields to the event loop.
+        await fsp.mkdir(opts.reportDir, { recursive: true });
+        await fsp.writeFile(path, renderSessionReport(result.report, {
+          command: 'plumbline hook',
+          source: payload.transcriptPath,
+        }), 'utf8');
+        process.stderr.write(`plumbline: ${path}\n`);
+      } catch (err) {
+        process.stderr.write(`plumbline: could not write ${path} (${err.code ?? err.message})\n`);
+      }
+    }
+  } catch {
+    // Silence, deliberately: see the module note in src/hook.mjs.
+  }
+  return 0;
+}
+
+/** Wire `plumbline hook` into the harness settings file, idempotently. */
+function installHook(opts) {
+  const command = `plumbline hook${opts.profile ? ` --profile=${opts.profile}` : ''}${opts.level !== 'warn' ? ` --level=${opts.level}` : ''}`;
+  const entry = { matcher: '', hooks: [{ type: 'command', command }] };
+
+  if (opts.print) {
+    process.stdout.write(`${JSON.stringify({ hooks: { [opts.event]: [entry] } }, null, 2)}\n`);
+    return 0;
+  }
+
+  const path = opts.settings ?? join(homedir(), '.claude', 'settings.json');
+  let current;
+  try {
+    current = readSettings(path);
+  } catch (err) {
+    process.stderr.write(`plumbline: ${err.message}\n`);
+    return 2;
+  }
+
+  const { settings, changed } = mergeHookConfig(current.settings, { event: opts.event, command });
+  if (!changed) {
+    process.stdout.write(`plumbline: already wired into ${opts.event} in ${path}\n`);
+    return 0;
+  }
+
+  const backup = writeSettings(path, settings);
+  process.stdout.write([
+    `plumbline: added a ${opts.event} hook to ${path}`,
+    backup ? `plumbline: previous settings copied to ${backup}` : null,
+    `plumbline: it runs "${command}" and prints one line when drift crosses ${opts.level}. It never blocks.`,
+  ].filter(Boolean).join('\n') + '\n');
+  return 0;
+}
+
+/** Hook payloads arrive on stdin; an interactive run with no pipe must not hang. */
+function readStdin() {
+  if (process.stdin.isTTY) return Promise.resolve('');
+  return new Promise((resolve) => {
+    let data = '';
+    process.stdin.setEncoding('utf8');
+    process.stdin.on('data', (chunk) => { data += chunk; });
+    process.stdin.on('end', () => resolve(data));
+    process.stdin.on('error', () => resolve(''));
+  });
+}
+
 async function main() {
   const { opts, positional } = parseArgs(process.argv.slice(2));
   const [command, file] = positional;
@@ -290,6 +419,9 @@ async function main() {
     process.stdout.write(`${listProfiles().join('\n')}\n`);
     return 0;
   }
+
+  if (command === 'hook') return runHook(opts);
+  if (command === 'install-hook') return installHook(opts);
 
   if (command === 'scan') {
     if (!file) {

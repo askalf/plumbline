@@ -99,7 +99,14 @@ export function collectTranscripts(target, { limit = Infinity, exts = ['.jsonl']
  * Assess one Claude Code transcript against a profile.
  * Returns null for transcripts with no tool activity - nothing to score.
  */
-export async function scanTranscript(path, profile, { thresholds } = {}) {
+/**
+ * @param {object} [options]
+ * @param {boolean} [options.full] Also return the whole assessment. Off by
+ *   default because a corpus scan holds every result in memory at once, and a
+ *   full report carries a timeline entry per scored action - fine for one
+ *   session, needlessly heavy across 1,586 of them.
+ */
+export async function scanTranscript(path, profile, { thresholds, full = false } = {}) {
   const { events, task, cwd, tools } = await readTranscript(path);
   if (events.length === 0) return null;
 
@@ -127,6 +134,7 @@ export async function scanTranscript(path, profile, { thresholds } = {}) {
       detail: s.detail ?? null,
       severity: s.severity,
     })),
+    ...(full ? { report } : {}),
   };
 }
 
