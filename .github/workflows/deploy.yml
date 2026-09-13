@@ -31,6 +31,28 @@ jobs:
         with:
           node-version: '22'
 
+      # An empty secret is not a build problem, but wrangler reports it as one:
+      # you get a generic "necessary to set a CLOUDFLARE_API_TOKEN" three steps
+      # in, after two minutes of npx, and nothing says WHICH repo is missing
+      # WHICH secret. Run 34787419169 failed exactly this way on a workflow file
+      # unchanged since July — the secrets had been removed from the repo out of
+      # band. Fail in five seconds instead, and name the fix.
+      - name: Preflight - Cloudflare credentials are present
+        run: |
+          missing=""
+          [ -n "$CLOUDFLARE_API_TOKEN" ] || missing="$missing CLOUDFLARE_API_TOKEN"
+          [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || missing="$missing CLOUDFLARE_ACCOUNT_ID"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secret(s):$missing — nothing was deployed, ${{ github.repository }} is still serving the previous build."
+            echo "Set them on this repo (Settings -> Secrets and variables -> Actions), or:"
+            for s in $missing; do
+              echo "  gh secret set $s --repo ${{ github.repository }}"
+            done
+            echo "CLOUDFLARE_API_TOKEN needs Pages:Edit + Zone:DNS:Edit + Zone:Read on sprayberrylabs.com."
+            exit 1
+          fi
+          echo "Both Cloudflare secrets are set."
+
       - name: Ensure the Pages project exists
         run: npx --yes wrangler@3 pages project create plumbline --production-branch=main || true
 
