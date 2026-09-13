@@ -6,7 +6,7 @@
 <title>plumbline &mdash; trajectory-level monitoring for autonomous agents</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="mask-icon" href="/favicon.svg" color="#cba227">
-<meta name="description" content="An agent escape can be built from actions your guard already approved. plumbline scores the sequence against the declared intent &mdash; and closes the floor shape-based detection can't cross with a local model. Zero dependencies, MIT.">
+<meta name="description" content="An agent escape can be built from actions your guard already approved. plumbline scores the sequence against the declared intent &mdash; and reaches for the floor shape-based detection can't cross with a local model. Zero dependencies, MIT.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://plumbline.sprayberrylabs.com/">
 <meta property="og:title" content="plumbline — trajectory-level monitoring for autonomous agents">
@@ -355,7 +355,7 @@
         </div>
       </div>
       <p class="cmp-cap">Left: the floor as it stands — every action authorized, <b>shape sees nothing</b>. Right: the measured semantic run on the ambient-credential escape, <span class="br">which is how that one was found before a rule could be written for it.</span></p>
-      <p style="margin-top:1.8rem;color:var(--ink-2)">Validated at temperature 0 with <strong>zero false positives</strong> across eight benign trajectories — four built to look shape-identical to escapes (a task that legitimately reads AWS keys; one that curls the metadata endpoint because the task is <em>writing a metadata detector</em>). On that last case the model is more precise than plumbline's own deterministic detector. Honest limits, in full: the model catches 3 of 5 escapes alone — the other two are covered by a deterministic rule, and the layers are complementary. <a href="https://github.com/askalf/plumbline/blob/main/docs/semantic-detector.md">The full scorecard, and a methodology error I caught, are documented.</a></p>
+      <p style="margin-top:1.8rem;color:var(--ink-2)">Re-run 2026-09-13 at temperature 0: <strong>zero false positives</strong> across nine benign trajectories — five built to look shape-identical to escapes (a task that legitimately reads AWS keys; one that curls the metadata endpoint because the task is <em>writing a metadata detector</em>; one that reads <code>~/.npmrc</code> and opens a PR, the exact shape <span class="rd">siphon</span> flags). On those the model is more precise than plumbline's own deterministic detectors. Honest limits, in full: the model catches 2 of 6 escapes alone, two more are covered by a deterministic rule — and the semantic-floor case, the one only this layer could reach, it <strong>missed</strong> on the evaluated model. Its unique contribution is unproven, and it is reported that way. <a href="https://github.com/askalf/plumbline/blob/main/docs/semantic-detector.md">The full scorecard, the model-size check, and a methodology error I caught, are documented.</a></p>
     </div>
   </section>
 
@@ -412,7 +412,7 @@
         <div class="node"><div class="step">1 &middot; guard</div><h3>redstamp</h3><p>Blocks the worst individual calls and writes a hash-chained audit record for each.</p></div>
         <div class="node"><div class="step">2 &middot; audit</div><h3>tamper-evident</h3><p>An agent that edits its own trail to hide a denial breaks the chain. plumbline detects it.</p></div>
         <div class="node pl"><div class="step">3 &middot; monitor</div><h3>plumbline</h3><p>Reads the log and catches the escapes the guard individually allowed — the ratchet, the accretion, the launder.</p></div>
-        <div class="node"><div class="step">4 &middot; intent</div><h3>semantic</h3><p>A local model closes the last gap: actions that serve no task at all.</p></div>
+        <div class="node"><div class="step">4 &middot; intent</div><h3>semantic</h3><p>A local model reaches for the last gap: actions that serve no task at all. Zero false alarms so far; the gap itself not yet shown closed.</p></div>
       </div>
       <p style="margin-top:1.8rem;color:var(--ink-2)">Because redstamp records a <code>decision</code> per call, it is the one source where the <strong>ratchet</strong> detector is fully live: a guard-denied call followed by a reshaped one that passed — evasion the per-call guard structurally cannot see — caught at the trajectory level. Each layer covers a blind spot of the one below it.</p>
     </div>
