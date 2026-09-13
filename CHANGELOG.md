@@ -12,6 +12,25 @@ notes.
 
 ## [Unreleased]
 
+### Changed
+
+- **Real-traffic validation re-run 2026-09-13**: 4,898 sessions / 84,274 tool
+  calls (1,100 Claude Code sessions on a live workstation, 3,798 forge
+  executions May–September), 99.1% clean, 43 flagged and every one by
+  `ratchet`. The README coverage table now carries all eight detectors with
+  this run's numbers, and `siphon` has its row: reachable in 74 Claude Code and
+  669 forge sessions, zero signals at any severity — the declared-false-positive
+  shape did not occur once, which is the base rate the detector's precision
+  rests on, measured rather than assumed. Closes #33.
+- `ratchet` is no longer described as a permanent forge blind spot: a dump that
+  carries per-call `output`/`is_error` makes it live (13% of forge executions
+  on this run), and the README and DETECTORS say so.
+
+### Fixed
+
+- `src/cli.mjs` imported `DEFAULT_THRESHOLDS` and never used it (CodeQL
+  `js/unused-local-variable`).
+
 ## [0.4.0] — 2026-09-11
 
 ### Added

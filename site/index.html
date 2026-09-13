@@ -375,25 +375,27 @@
     <div class="reveal">
       <div class="sec-eyebrow">evidence, with its coverage</div>
       <h2 class="sec-title">Real traffic, honestly reported</h2>
-      <p class="sec-intro">Validated against 1,586 real agent sessions across two machines and two independent harnesses — one with a completely disjoint tool vocabulary, which tests the schema's portability rather than asserting it.</p>
+      <p class="sec-intro">Validated against 4,898 real agent sessions across two independent harnesses — one with a completely disjoint tool vocabulary, which tests the schema's portability rather than asserting it.</p>
       <div class="stats">
-        <div class="stat"><span class="n">1,586</span><span class="k">real sessions</span></div>
-        <div class="stat"><span class="n">57,602</span><span class="k">tool calls</span></div>
-        <div class="stat good"><span class="n">99.4%</span><span class="k">clean</span></div>
-        <div class="stat good"><span class="n">0</span><span class="k">false halts</span></div>
+        <div class="stat"><span class="n">4,898</span><span class="k">real sessions</span></div>
+        <div class="stat"><span class="n">84,274</span><span class="k">tool calls</span></div>
+        <div class="stat good"><span class="n">99.1%</span><span class="k">clean</span></div>
+        <div class="stat"><span class="n">43</span><span class="k">flagged, all by ratchet</span></div>
       </div>
-      <p style="font-family:var(--mono);font-size:0.72rem;color:var(--muted);letter-spacing:0.04em;margin:-0.4rem 0 0;">Measured July 2026 &middot; the Claude Code corpus is live, so these totals only grow.</p>
-      <p style="color:var(--ink-2)">But don't quote that clean rate without its coverage: <strong>no session could feed all six deterministic detectors</strong>, and the tool says so on every run. Low coverage is normal — most sessions contain no credential reuse or denials. An adapter blind spot is a defect, and is declared up front rather than discovered from a suspiciously clean report.</p>
+      <p style="font-family:var(--mono);font-size:0.72rem;color:var(--muted);letter-spacing:0.04em;margin:-0.4rem 0 0;">Measured 2026-09-13 (first run July 2026: 1,586 sessions, 99.4%) &middot; the Claude Code corpus is live, so these totals only grow.</p>
+      <p style="color:var(--ink-2)">But don't quote that clean rate without its coverage: <strong>no session could feed all eight deterministic detectors</strong>, and the tool says so on every run. Low coverage is normal — most sessions contain no credential reuse or denials. An adapter blind spot is a defect, and is declared up front rather than discovered from a suspiciously clean report. <code>siphon</code> could feed on 743 sessions and fired on none, at any severity — its declared false-positive shape did not occur once.</p>
       <div class="tbl-wrap">
         <table>
-          <thead><tr><th>detector</th><th>Claude Code (710)</th><th>Forge (828)</th></tr></thead>
+          <thead><tr><th>detector</th><th>Claude Code (1,100)</th><th>Forge (3,798)</th></tr></thead>
           <tbody>
-            <tr><td>staircase</td><td class="num">46%</td><td class="num">100%</td></tr>
-            <tr><td>recon</td><td class="num">22%</td><td class="num">54%</td></tr>
-            <tr><td>egress</td><td class="num">22%</td><td class="num">18%</td></tr>
-            <tr><td>ratchet</td><td class="num">18%</td><td class="warnc">adapter blind spot</td></tr>
-            <tr><td>fanout</td><td class="num">5%</td><td class="num">3%</td></tr>
-            <tr><td>reassembly</td><td class="num">1%</td><td>not exercised</td></tr>
+            <tr><td>staircase</td><td class="num">9%</td><td class="num">100%</td></tr>
+            <tr><td>siphon</td><td class="num">7%</td><td class="num">18%</td></tr>
+            <tr><td>ratchet</td><td class="num">6%</td><td class="num">13%</td></tr>
+            <tr><td>recon</td><td class="num">5%</td><td class="num">53%</td></tr>
+            <tr><td>egress</td><td class="num">5%</td><td class="num">19%</td></tr>
+            <tr><td>metadata</td><td class="num">5%</td><td class="num">53%</td></tr>
+            <tr><td>fanout</td><td class="num">1%</td><td class="num">2%</td></tr>
+            <tr><td>reassembly</td><td>not exercised</td><td class="num">&lt;1%</td></tr>
           </tbody>
         </table>
       </div>

@@ -221,24 +221,30 @@ Writing an adapter for a harness we don't cover is the most useful contribution 
 
 ## Validated against real traffic
 
-A detector set that has only seen its own synthetic corpus is worthless. plumbline was validated against **1,586 real agent sessions / 57,602 tool calls** across two machines and two independent harnesses.
+A detector set that has only seen its own synthetic corpus is worthless. plumbline is validated against real agent traffic, most recently **4,898 real agent sessions / 84,274 tool calls** across two independent harnesses (measured 2026-09-13; the first run, July 2026, was 1,586 sessions / 57,602 calls).
 
-> ⚠️ **Read the coverage below before quoting the clean rate.** No session could feed all six deterministic detectors, and `ratchet` is structurally dead on the forge adapter. *Measured July 2026; the Claude Code corpus is live and grows, so quote totals with the date.* **`siphon` postdates this run and is not in the table** — every adapter emits `target.path`, so none is structurally blind to it, and it was verified end-to-end through the `claude-code` and `openai` adapters — but its precision on real traffic is unmeasured, and it ships with a declared false positive: [`corpus/eval-benign/hard-npm-auth.jsonl`](corpus/eval-benign/hard-npm-auth.jsonl).
+> ⚠️ **Read the coverage below before quoting the clean rate.** No session could feed all eight deterministic detectors. *The Claude Code corpus is live and grows, so quote totals with the date.*
 
-The split: Claude Code on two live workstations, and a hosted SDK-engine harness (a fixed 828-session export) whose tool vocabulary is deliberately disjoint from a Claude Code transcript — so the schema's portability is *tested*, not asserted. Combined: **99.4% clean, zero false halts.**
+The split: Claude Code on a live workstation (1,100 sessions / 31,195 calls), and a hosted SDK-engine harness (3,798 executions / 53,079 calls, May–September 2026) whose tool vocabulary is deliberately disjoint from a Claude Code transcript — so the schema's portability is *tested*, not asserted. Combined: **99.1% clean**, 43 sessions flagged, every one of them by `ratchet` — a refused call followed by a reshaped one that succeeded, which is the shape that detector exists to surface and a human's call to adjudicate. One of those reached `halt` (three denied-then-successful `ssh` runs in one session); the rest sit at `warn` or `confirm`.
 
 **A clean rate is not a safety claim unless every detector could have fired.** plumbline computes this on every run and refuses to print a bare clean rate when a detector could not, because the alternative — a headline percentage with silently dead detectors behind it — is exactly the failure this project shipped and caught three times.
 
+Coverage is the share of sessions that carried the fields a detector needs (its reachability declaration in [`src/reachability.mjs`](src/reachability.mjs)), so a clean verdict from it means something:
+
 | Detector | Claude Code | Forge |
 |---|---|---|
-| `staircase` | 46% | 100% |
-| `recon` | 22% | 54% |
-| `egress` | 22% | 18% |
-| `ratchet` | 18% | **adapter blind spot** |
-| `fanout` | 5% | 3% |
-| `reassembly` | 1% | not exercised |
+| `staircase` | 9% | 100% |
+| `siphon` | 7% | 18% |
+| `ratchet` | 6% | 13% |
+| `recon` | 5% | 53% |
+| `egress` | 5% | 19% |
+| `metadata` | 5% | 53% |
+| `fanout` | 1% | 2% |
+| `reassembly` | not exercised | <1% |
 
-Low coverage is normal — most sessions contain no credential reuse or denials. An **adapter blind spot** is different: `ratchet` is dead for *every* forge corpus, because forge records tool calls without per-call outcomes. That is a defect, and it is declared up front in `ADAPTER_CAPABILITIES` rather than discovered from a suspiciously clean report.
+Low coverage is normal — most sessions contain no credential reuse or denials. An **adapter blind spot** is different: for its first months `ratchet` was dead for *every* forge corpus, because forge dumps recorded tool calls without per-call outcomes. That was a defect, declared up front in `ADAPTER_CAPABILITIES` rather than discovered from a suspiciously clean report; since dumps carry `output`/`is_error` per call it is reachable in 13% of forge sessions and produced every flag the forge corpus has.
+
+**`siphon` on real traffic.** It could feed on 74 Claude Code sessions and 669 forge sessions and fired on **none of them, at any severity** — not even the 0.15 lead that a bare read of a home-directory credential store produces. The shape of its declared false positive, [`corpus/eval-benign/hard-npm-auth.jsonl`](corpus/eval-benign/hard-npm-auth.jsonl), did not occur once in 84,274 tool calls, so the base-rate argument the detector rests on holds on this traffic: home-credential-store reads followed by off-provider egress are rare enough that the known misread costs nothing here. Precision cannot be quoted from zero positives; what can be is a false-positive rate of 0 on 743 sessions that could have produced one.
 
 ## Attacked, and honest about the floor
 

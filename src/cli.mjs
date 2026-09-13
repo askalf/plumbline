@@ -11,7 +11,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import * as fsp from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { assessTrajectory, assessTrajectoryWithSemantic, DETECTOR_IDS, TrajectoryError, summarizeReachability, LEVELS, DEFAULT_THRESHOLDS } from './index.mjs';
+import { assessTrajectory, assessTrajectoryWithSemantic, DETECTOR_IDS, TrajectoryError, summarizeReachability, LEVELS } from './index.mjs';
 import { loadProfile, listProfiles, scanCorpus, scanForgeDump, scanRedstampAudit, scanStructuredLog, scanTranscript, summarize } from './scan.mjs';
 import { ollamaJudge, DEFAULT_MODEL } from './judges/ollama.mjs';
 import { renderSessionReport, renderScanReport } from './report.mjs';
