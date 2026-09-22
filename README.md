@@ -182,7 +182,6 @@ MIT — see [LICENSE](LICENSE).
 plumbline is the trajectory monitor of **[Own Your Stack](https://github.com/askalf)** — open tools for owning your AI infrastructure instead of renting it by the token. One subscription. Your box. Your terms.
 
 - **[dario](https://github.com/askalf/dario)** — own your routing
-- **[hybrid](https://github.com/askalf/hybrid)** — own your inference
 - **[browser-bridge](https://github.com/askalf/browser-bridge)** — own your browser
 - **[redstamp](https://github.com/askalf/redstamp)** — own your agent security
 - **[plumbline](https://github.com/askalf/plumbline)** — own your agent trajectory _(you are here)_
