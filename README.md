@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src=".github/readme/hero.jpg" alt="Every step was authorized. The sequence was the attack. A trajectory of individually approved agent events climbs past the drift threshold, and plumbline halts it at seq 18, nine events before code execution at seq 27." width="100%">
+
 # `plumbline`
 
 ### Per-action authorization can't see an escape assembled from actions it already approved.<br/>plumbline scores the whole **trajectory** — against the job the agent was given.
