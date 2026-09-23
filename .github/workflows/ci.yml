@@ -9,9 +9,16 @@ on:
 permissions:
   contents: read
 
+# Cancel a superseded PR run; let push and schedule runs finish so a
+# default-branch result is never dropped.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:

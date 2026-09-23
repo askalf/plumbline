@@ -27,6 +27,7 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: write # push the tag + create the GitHub release
       actions: write # dispatch publish.yml
