@@ -187,10 +187,11 @@ plumbline is the trajectory monitor of **[Own Your Stack](https://github.com/ask
 - **[browser-bridge](https://github.com/askalf/browser-bridge)** — own your browser
 - **[redstamp](https://github.com/askalf/redstamp)** — own your agent security
 - **[plumbline](https://github.com/askalf/plumbline)** — own your agent trajectory _(you are here)_
-- **[truecopy](https://github.com/askalf/truecopy)** — own your agent skills
+- **[truecopy](https://github.com/askalf/truecopy)** — own your agent skills · [truecopy-action](https://github.com/askalf/truecopy-action) gates them in CI
 - **[cordon](https://github.com/askalf/cordon)** — own your prompts
 - **[fieldpass](https://github.com/askalf/browser-bridge/tree/master/policy)** — own your agent browser (now browser-bridge's `policy/` layer)
 - **[amnesia](https://github.com/askalf/amnesia)** — own your search
+- **[checkout-with-retry](https://github.com/askalf/checkout-with-retry)** — own your CI with retrying checkouts
 - **[askalf](https://askalf.org)** — own your operation
 
 ---
