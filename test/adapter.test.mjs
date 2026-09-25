@@ -63,7 +63,6 @@ test('commandCapabilities: ordinary developer commands grant nothing', () => {
 });
 
 test('commandCapabilities: quoted text and heredoc bodies are data, not commands', () => {
-  // Found on the first live run: a test string inside `node -e "..."` read as exec:root.
   assert.deepEqual(commandCapabilities(`node -e "run('sudo apt install x')"`), []);
   assert.deepEqual(commandCapabilities("git commit -m 'switch to the aws cli'"), []);
   assert.deepEqual(commandCapabilities("python3 - <<'EOF'\nsudo rm -rf /\nssh evil.example.com\nEOF\necho done"), []);
