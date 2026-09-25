@@ -41,7 +41,8 @@ Options:
   --adapter=NAME    claude-code (default) | forge | redstamp |
                     openai | anthropic | langchain | otel
   --semantic        Also run the model-backed semantic detector (replay only).
-                    Catches in-envelope escapes shape cannot see. Needs a local
+                    Built for in-envelope escapes shape cannot see; its reach
+                    is unproven (docs/semantic-detector.md). Needs a local
                     ollama at 127.0.0.1:11434 (model ${DEFAULT_MODEL}); override
                     with PLUMBLINE_OLLAMA / PLUMBLINE_MODEL.
   --limit=N         Stop after N sessions (scan only)
