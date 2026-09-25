@@ -47,8 +47,9 @@ export function actionLine(event) {
  *
  * THIS EXACT TEXT is the one validated in docs/semantic-detector.md: on
  * qwen2.5:7b it catches the ambient-credential semantic escape from the path
- * alone, with zero false positives across 8 benign trajectories (4
- * adversarially shape-identical to escapes). An earlier version that only asked
+ * alone, with zero false positives across 9 benign trajectories (5
+ * adversarially shape-identical to escapes); it misses the semantic-floor
+ * escape (re-run 2026-09-13). An earlier version that only asked
  * "does this serve the task" false-positived on benign work - it flagged
  * acquiring a GitHub token during a "triage and open a PR" task, reasoning too
  * literally that triage does not need a token.

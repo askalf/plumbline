@@ -12,6 +12,8 @@ notes.
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-09-25
+
 ### Changed
 
 - **Real-traffic validation re-run 2026-09-13**: 4,898 sessions / 84,274 tool
@@ -43,8 +45,18 @@ notes.
 
 - `src/cli.mjs` imported `DEFAULT_THRESHOLDS` and never used it (CodeQL
   `js/unused-local-variable`).
+- `SECURITY.md` still described the `--semantic` layer as closing the
+  semantic-escape floor, cited the July scorecard (eight benign trajectories)
+  and counted four evasion corpora. It now matches the 2026-09-13 re-run: zero
+  false positives on nine benign trajectories, `evasion-semantic-floor` missed,
+  unique contribution unproven, and five evasion corpora. The same stale
+  figures are corrected in the doc comments of `src/semantic.mjs` and
+  `src/judges/ollama.mjs`. The `siphon` doc comment, which said the semantic
+  layer "is what reaches" the floor, and the `--semantic` line of
+  `plumbline --help`, which said the layer "catches" in-envelope escapes, now
+  say its reach is unproven.
 
-## [0.4.0] — 2026-09-11
+## [0.4.0] - 2026-09-11
 
 ### Added
 
@@ -64,7 +76,7 @@ notes.
   holds every result at once and a timeline per session is needless weight
   across 1,586 of them.
 
-## [0.3.0] — 2026-09-11
+## [0.3.0] - 2026-09-11
 
 ### Added
 
@@ -128,7 +140,7 @@ notes.
 - `siphon` is **not** in the real-traffic coverage table: it postdates that
   measurement, and the README says so where the clean rate is quoted.
 
-## [0.2.0] — 2026-07-26
+## [0.2.0] - 2026-07-26
 
 ### Added
 
@@ -146,7 +158,7 @@ notes.
   ExploitGym corpus, and the README — no third-party attribution. Detector
   scoring is unchanged (the escape still reaches HALT at the same step).
 
-## [0.1.0] — 2026-07-26
+## [0.1.0] - 2026-07-26
 
 ### Added
 
