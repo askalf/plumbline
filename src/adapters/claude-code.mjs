@@ -275,9 +275,7 @@ function remoteHost(destination) {
 /**
  * The command with heredoc bodies and quoted strings blanked out.
  *
- * Text inside quotes is data, not a command: `node -e "... 'sudo x' ..."` or a
- * commit message that mentions `aws` must not grant anything. Found on the first
- * live run, where a test string in a `node -e` argument read as `exec:root`.
+ * Text inside quotes is treated as data and does not grant capabilities.
  * The cost is that `bash -c "sudo x"` is missed, which fails toward quiet rather
  * than toward a rung on every session that quotes a tool name.
  */
