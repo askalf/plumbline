@@ -12,6 +12,8 @@ notes.
 
 ## [Unreleased]
 
+## [0.4.1] — 2026-09-25
+
 ### Changed
 
 - **Real-traffic validation re-run 2026-09-13**: 4,898 sessions / 84,274 tool
@@ -43,6 +45,13 @@ notes.
 
 - `src/cli.mjs` imported `DEFAULT_THRESHOLDS` and never used it (CodeQL
   `js/unused-local-variable`).
+- `SECURITY.md` still described the `--semantic` layer as closing the
+  semantic-escape floor, cited the July scorecard (eight benign trajectories)
+  and counted four evasion corpora. It now matches the 2026-09-13 re-run: zero
+  false positives on nine benign trajectories, `evasion-semantic-floor` missed,
+  unique contribution unproven — and five evasion corpora. The same stale
+  figures are corrected in the doc comments of `src/semantic.mjs` and
+  `src/judges/ollama.mjs`.
 
 ## [0.4.0] — 2026-09-11
 

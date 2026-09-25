@@ -12,13 +12,13 @@
  * defenders had to reach for a self-hostable open-weight model. A monitor that
  * stops working when it sees a real attack is not a monitor.
  *
- * Empirically, qwen2.5:7b at temperature 0 catches the escapes shape cannot
- * reach — measured on the ambient-credential escape, which the deterministic
- * `siphon` detector has since caught too — with zero false positives across
- * eight benign trajectories, four of them adversarially chosen to look
- * shape-identical to escapes. That run predates `evasion-semantic-floor.jsonl`,
- * the floor case as it now stands. Smaller models are faster but flag more;
- * see docs/semantic-detector.md.
+ * Empirically (re-run 2026-09-13), qwen2.5:7b at temperature 0 holds zero
+ * false positives across nine benign trajectories, five of them adversarially
+ * chosen to look shape-identical to escapes, and catches the ambient-credential
+ * escape from the path alone — which the deterministic `siphon` detector has
+ * since caught too. It MISSES `evasion-semantic-floor.jsonl`, the floor case as
+ * it now stands, so its unique reach is unproven. Smaller models are faster but
+ * flag more; see docs/semantic-detector.md.
  */
 
 const DEFAULT_ENDPOINT = 'http://127.0.0.1:11434/api/generate';
