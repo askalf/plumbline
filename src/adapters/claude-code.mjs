@@ -228,6 +228,114 @@ export function opOf(command) {
   return null;
 }
 
+/**
+ * What a shell command reaches, beyond "it ran locally".
+ *
+ * The per-tool map above says every Bash call holds `exec:local`, which every
+ * workstation profile grants, so on a real transcript staircase had nothing
+ * off-envelope to count: reachable on every session, able to fire on none. The
+ * rungs of the ExploitGym staircase were cloud identity, remote execution and
+ * new reach, and a shell command names all three plainly: `aws ...`,
+ * `ssh host ...`, `sudo ...`. This reads them off the command so the envelope
+ * has something to say no to.
+ *
+ * Kept to binaries whose use is itself a capability. `gh`, `docker` and `git
+ * push` are ordinary on a developer box and are left out on purpose: a rung on
+ * every session is the same failure as a rung on none.
+ */
+const CLOUD_BINARIES = {
+  aws: 'cloud:aws',
+  gcloud: 'cloud:gcp',
+  gsutil: 'cloud:gcp',
+  bq: 'cloud:gcp',
+  az: 'cloud:azure',
+  kubectl: 'cloud:k8s',
+  helm: 'cloud:k8s',
+  terraform: 'cloud:iac',
+  tofu: 'cloud:iac',
+  pulumi: 'cloud:iac',
+};
+
+const PRIVILEGE = new Set(['sudo', 'doas', 'pkexec', 'su', 'runas']);
+
+/** ssh options that consume the following token. */
+const SSH_ARG_FLAGS = new Set(['-b', '-c', '-D', '-E', '-e', '-F', '-I', '-i', '-J', '-L', '-l', '-m', '-O', '-o', '-p', '-Q', '-R', '-S', '-W', '-w']);
+
+function unquote(token) {
+  return token.replace(/^['"]|['"]$/g, '');
+}
+
+/** `user@host`, `ssh://user@host:22` -> `host`, or null if it is not a plain hostname. */
+function remoteHost(destination) {
+  const bare = unquote(destination).replace(/^ssh:\/\//i, '').replace(/^[^@]*@/, '').replace(/:\d*$/, '').toLowerCase();
+  if (!/^[a-z0-9][a-z0-9._-]*$/.test(bare)) return null;
+  return LOCAL_HOSTS.has(bare) ? null : bare;
+}
+
+/**
+ * The command with heredoc bodies and quoted strings blanked out.
+ *
+ * Text inside quotes is treated as data and does not grant capabilities.
+ * The cost is that `bash -c "sudo x"` is missed, which fails toward quiet rather
+ * than toward a rung on every session that quotes a tool name.
+ */
+function commandSkeleton(command) {
+  const text = String(command).replace(/<<-?\s*(['"]?)(\w+)\1[^\n]*\n[\s\S]*?\n\s*\2\s*(?=\n|$)/g, '<<HEREDOC');
+  return text.replace(/'[^']*'|"(?:[^"\\]|\\.)*"/g, '""');
+}
+
+export function commandCapabilities(command) {
+  const out = new Set();
+  for (const segment of commandSkeleton(command).split(/&&|\|\||;|\||\n/)) {
+    const tokens = segment.trim().split(/\s+/).map(unquote).filter(Boolean);
+    let i = 0;
+    let bin = null;
+    for (; i < tokens.length; i += 1) {
+      const token = tokens[i];
+      if (token.includes('=') || token.startsWith('-')) continue;
+      const bare = token.replace(/^.*[\\/]/, '').replace(/\.(exe|cmd|ps1|sh)$/i, '').toLowerCase();
+      if (NAVIGATION.has(bare)) break;
+      if (PRIVILEGE.has(bare)) {
+        out.add('exec:root');
+        continue;
+      }
+      if (WRAPPERS.has(bare)) continue;
+      bin = bare;
+      break;
+    }
+    if (!bin) continue;
+    const args = tokens.slice(i + 1);
+
+    if (CLOUD_BINARIES[bin]) out.add(CLOUD_BINARIES[bin]);
+
+    if (bin === 'ssh') {
+      for (let j = 0; j < args.length; j += 1) {
+        if (SSH_ARG_FLAGS.has(args[j])) { j += 1; continue; }
+        if (args[j].startsWith('-')) continue;
+        const host = remoteHost(args[j]);
+        if (host) out.add(`exec:remote:${host}`);
+        break;
+      }
+    }
+
+    if (bin === 'scp' || bin === 'rsync' || bin === 'sftp') {
+      for (const arg of args) {
+        // `host:path`, never a Windows drive letter (`C:\\x`).
+        const m = /^(?:[^@\s]+@)?([A-Za-z0-9][A-Za-z0-9._-]+):/.exec(arg);
+        const host = m ? remoteHost(m[1]) : bin === 'sftp' && !arg.startsWith('-') ? remoteHost(arg) : null;
+        if (host) out.add(`net:transfer:${host}`);
+      }
+    }
+
+    const verb = (args.find((a) => !a.startsWith('-') && !a.startsWith('/')) ?? '').toLowerCase();
+    if (bin === 'crontab' && !args.includes('-l')) out.add('exec:persist');
+    if (bin === 'systemctl' && verb === 'enable') out.add('exec:persist');
+    if (bin === 'launchctl' && ['load', 'bootstrap', 'submit'].includes(verb)) out.add('exec:persist');
+    if (bin === 'schtasks' && args.some((a) => a.toLowerCase() === '/create')) out.add('exec:persist');
+  }
+  return [...out];
+}
+
 function targetFor(tool, input) {
   if (tool === 'WebFetch' && typeof input?.url === 'string') {
     const host = hostFromUrl(input.url);
@@ -326,7 +434,9 @@ export async function readTranscript(file, opts = {}) {
         };
 
         // First exercise of a capability in this session is the grant.
-        const fresh = capabilitiesFor(tool).filter((c) => !held.has(c));
+        const command = typeof input.command === 'string' ? input.command : null;
+        const reached = command ? commandCapabilities(command) : [];
+        const fresh = [...capabilitiesFor(tool), ...reached].filter((c) => !held.has(c));
         for (const c of fresh) held.add(c);
         if (fresh.length > 0) event.capability_grant = fresh;
 
@@ -334,7 +444,6 @@ export async function readTranscript(file, opts = {}) {
           event.instance = `sub-${block.id ?? event.seq}`;
         }
 
-        const command = typeof input.command === 'string' ? input.command : null;
         if (command) {
           const hosts = hostsInCommand(command);
           if (hosts.length > 0) {
