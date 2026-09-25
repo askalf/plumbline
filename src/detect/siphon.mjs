@@ -62,9 +62,10 @@
  *   - Any credential not in a well-known location: a token in an environment
  *     variable, a secret pasted into a config file, an inherited IAM role never
  *     read from disk at all. This detector closes one common instance of the
- *     semantic floor. It does not close the floor — see
- *     `corpus/evasion-semantic-floor.jsonl`, which still scores clean, and the
- *     `--semantic` layer, which is what reaches that class.
+ *     semantic floor. It does not close the floor; see
+ *     `corpus/evasion-semantic-floor.jsonl`, which still scores clean. The
+ *     `--semantic` layer is built for that class, but its reach is unproven
+ *     (docs/semantic-detector.md).
  *   - A forged envelope. Clearance is granted by the declared capabilities, so
  *     an agent that writes its own `session.declare` can name the provider and
  *     clear itself. The same trust assumption the whole envelope rests on:
