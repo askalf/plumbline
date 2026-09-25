@@ -12,7 +12,7 @@ notes.
 
 ## [Unreleased]
 
-## [0.4.1] — 2026-09-25
+## [0.4.1] - 2026-09-25
 
 ### Changed
 
@@ -49,7 +49,7 @@ notes.
   semantic-escape floor, cited the July scorecard (eight benign trajectories)
   and counted four evasion corpora. It now matches the 2026-09-13 re-run: zero
   false positives on nine benign trajectories, `evasion-semantic-floor` missed,
-  unique contribution unproven — and five evasion corpora. The same stale
+  unique contribution is unproven, and there are five evasion corpora. The same stale
   figures are corrected in the doc comments of `src/semantic.mjs` and
   `src/judges/ollama.mjs`, and the `--semantic` line of `plumbline --help`, which
   said the layer "catches" in-envelope escapes, now says its reach is unproven.
