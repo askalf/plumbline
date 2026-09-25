@@ -56,7 +56,7 @@ notes.
   `plumbline --help`, which said the layer "catches" in-envelope escapes, now
   say its reach is unproven.
 
-## [0.4.0] — 2026-09-11
+## [0.4.0] - 2026-09-11
 
 ### Added
 
@@ -76,7 +76,7 @@ notes.
   holds every result at once and a timeline per session is needless weight
   across 1,586 of them.
 
-## [0.3.0] — 2026-09-11
+## [0.3.0] - 2026-09-11
 
 ### Added
 
@@ -140,7 +140,7 @@ notes.
 - `siphon` is **not** in the real-traffic coverage table: it postdates that
   measurement, and the README says so where the clean rate is quoted.
 
-## [0.2.0] — 2026-07-26
+## [0.2.0] - 2026-07-26
 
 ### Added
 
@@ -158,7 +158,7 @@ notes.
   ExploitGym corpus, and the README — no third-party attribution. Detector
   scoring is unchanged (the escape still reaches HALT at the same step).
 
-## [0.1.0] — 2026-07-26
+## [0.1.0] - 2026-07-26
 
 ### Added
 
