@@ -14,6 +14,23 @@ notes.
 
 ### Changed
 
+- **`staircase` can fire on Claude Code transcripts.** The adapter mapped each
+  tool to one coarse capability, and every Bash call to `exec:local`, which
+  every workstation profile grants. The detector was reachable on every session
+  and had nothing off-envelope to count. The adapter now also reads what a shell
+  command reaches: cloud CLIs (`cloud:aws`, `cloud:gcp`, `cloud:azure`,
+  `cloud:k8s`, `cloud:iac`), `ssh` (`exec:remote:<host>`), `scp` / `rsync` /
+  `sftp` to a remote host (`net:transfer:<host>`), `sudo` and its kin
+  (`exec:root`), and persistence (`exec:persist`). Quoted strings and heredoc
+  bodies are skipped, because a test string inside `node -e "..."` read as
+  `exec:root` on the first live run. **Not yet measured on the real-traffic
+  corpus**: one of these rungs is `warn`, two are `confirm` and three are
+  `halt`, so a platform engineer's ordinary `sudo` + `aws` + `kubectl` session
+  halts on `dev-workstation`. The clean rate in `docs/evidence.md` will move,
+  and it needs a re-run before release.
+
+### Changed
+
 - **Real-traffic validation re-run 2026-09-13**: 4,898 sessions / 84,274 tool
   calls (1,100 Claude Code sessions on a live workstation, 3,798 forge
   executions May–September), 99.1% clean, 43 flagged and every one by
