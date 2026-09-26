@@ -5,8 +5,8 @@
 //                      seeds from <dir>/<target> and saves every interesting input there, so a
 //                      corpus that persists between runs keeps getting deeper. Unset: no corpus.
 //   FUZZ_ARTIFACT_DIR  where a crashing input is written, created on demand. Unset: the cwd.
-// Jazzer is not a devDependency (the published tree stays exactly as committed): install it first
-// with `npm install --no-save @jazzer.js/core@4.0.0`, the pin .clusterfuzzlite/build.sh uses.
+// Jazzer comes from .clusterfuzzlite/package.json (`npm ci --prefix .clusterfuzzlite`), kept out of
+// plumbline's own package.json so the published dependency tree stays exactly as committed.
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -20,7 +20,7 @@ const corpusRoot = process.env.FUZZ_CORPUS_DIR || '';
 const artifactDir = process.env.FUZZ_ARTIFACT_DIR || '';
 // Run Jazzer's JS CLI directly under `node`: no .cmd wrapper, no shell, so a space in the repo
 // path cannot break the invocation.
-const jazzerCli = createRequire(import.meta.url).resolve('@jazzer.js/core/dist/cli.js');
+const jazzerCli = createRequire(new URL('../.clusterfuzzlite/package.json', import.meta.url)).resolve('@jazzer.js/core/dist/cli.js');
 if (artifactDir) mkdirSync(artifactDir, { recursive: true });
 
 for (const t of targets) {
