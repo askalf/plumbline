@@ -284,15 +284,74 @@ function commandSkeleton(command) {
   return text.replace(/'[^']*'|"(?:[^"\\]|\\.)*"/g, '""');
 }
 
+/**
+ * Shell words that precede a command without being one: grouping, negation,
+ * and the keywords of if/while/until/for bodies. `time` is also in WRAPPERS;
+ * it is listed here because it is a keyword in bash, not only a binary.
+ */
+const SHELL_PREFIXES = new Set(['{', '!', 'if', 'elif', 'then', 'else', 'while', 'until', 'do', 'time']);
+
+/**
+ * Command separators: `&&`, `||`, `;`, `|`, newline, and a single `&` that
+ * backgrounds a job. An `&` that is part of a redirection (`2>&1`, `>&2`,
+ * `&>log`) is not a separator.
+ */
+const SEPARATORS = /&&|\|\||;|\||\n|(?<![<>])&(?!>)/;
+
+/**
+ * Pull `$(...)`, `<(...)`, `>(...)` and backtick substitutions out of a
+ * skeleton. The inner commands run in the same shell, so each one is returned
+ * for its own scan; in the remaining text each substitution becomes `""` so
+ * `x=$(...)` still reads as an assignment.
+ */
+function extractSubstitutions(skeleton) {
+  const inner = [];
+  let rest = '';
+  for (let i = 0; i < skeleton.length; i += 1) {
+    if ('$<>'.includes(skeleton[i]) && skeleton[i + 1] === '(') {
+      let depth = 1;
+      let j = i + 2;
+      for (; j < skeleton.length && depth > 0; j += 1) {
+        if (skeleton[j] === '(') depth += 1;
+        else if (skeleton[j] === ')') depth -= 1;
+      }
+      inner.push(skeleton.slice(i + 2, depth === 0 ? j - 1 : j));
+      rest += skeleton[i] === '$' ? '""' : `${skeleton[i]}""`;
+      i = j - 1;
+    } else {
+      rest += skeleton[i];
+    }
+  }
+  rest = rest.replace(/`([^`]*)`?/g, (_, body) => { inner.push(body); return '""'; });
+  return { rest, inner };
+}
+
+/**
+ * How deep nested substitutions are followed. The command text comes from the
+ * agent being monitored, so nesting depth is attacker-chosen: unbounded
+ * recursion overflows the stack and costs quadratic time. Real commands nest
+ * two or three deep.
+ */
+const MAX_SUBSTITUTION_DEPTH = 16;
+
 export function commandCapabilities(command) {
   const out = new Set();
-  for (const segment of commandSkeleton(command).split(/&&|\|\||;|\||\n/)) {
-    const tokens = segment.trim().split(/\s+/).map(unquote).filter(Boolean);
+  collectCapabilities(commandSkeleton(command), out, 0);
+  return [...out];
+}
+
+function collectCapabilities(skeleton, out, depth) {
+  const { rest, inner } = extractSubstitutions(skeleton);
+  if (depth < MAX_SUBSTITUTION_DEPTH) for (const sub of inner) collectCapabilities(sub, out, depth + 1);
+  for (const segment of rest.split(SEPARATORS)) {
+    // Subshell parentheses are grouping, not part of the command word.
+    const tokens = segment.replace(/[()]/g, ' ').trim().split(/\s+/).map(unquote).filter(Boolean);
     let i = 0;
     let bin = null;
     for (; i < tokens.length; i += 1) {
       const token = tokens[i];
       if (token.includes('=') || token.startsWith('-')) continue;
+      if (SHELL_PREFIXES.has(token)) continue;
       const bare = token.replace(/^.*[\\/]/, '').replace(/\.(exe|cmd|ps1|sh)$/i, '').toLowerCase();
       if (NAVIGATION.has(bare)) break;
       if (PRIVILEGE.has(bare)) {
@@ -333,7 +392,6 @@ export function commandCapabilities(command) {
     if (bin === 'launchctl' && ['load', 'bootstrap', 'submit'].includes(verb)) out.add('exec:persist');
     if (bin === 'schtasks' && args.some((a) => a.toLowerCase() === '/create')) out.add('exec:persist');
   }
-  return [...out];
 }
 
 function targetFor(tool, input) {

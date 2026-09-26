@@ -12,6 +12,17 @@ notes.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Shell capabilities are read through background jobs, substitutions and
+  compound commands.** `commandCapabilities` returned nothing for
+  `sleep 1 & sudo id`, `x=$(aws sts get-caller-identity)`, backtick
+  substitutions, `(sudo id)`, `{ sudo id; }` and `if ...; then sudo id; fi`.
+  A single `&` now separates commands (redirections such as `2>&1` do not),
+  grouping and control keywords are skipped as prefixes, and `$(...)`,
+  `<(...)`, `>(...)` and backticks are scanned as commands of their own.
+  Quoted text, including `bash -c "..."`, is still treated as data.
+
 ## [0.4.1] - 2026-09-25
 
 ### Changed
