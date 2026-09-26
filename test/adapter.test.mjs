@@ -69,6 +69,44 @@ test('commandCapabilities: quoted text and heredoc bodies are data, not commands
   assert.deepEqual(commandCapabilities('cat <<EOF > notes.md\naws s3 cp x y\nEOF'), []);
 });
 
+test('commandCapabilities: background jobs, substitutions, groups and compound commands are read', () => {
+  // Each of these runs the capability-bearing command in the same shell, unquoted.
+  const cases = [
+    ['sleep 1 & sudo id', ['exec:root']],
+    ['sleep 1 &aws s3 ls', ['cloud:aws']],
+    ['x=$(aws sts get-caller-identity)', ['cloud:aws']],
+    ['echo $(sudo id)', ['exec:root']],
+    ['echo $(echo $(kubectl get pods))', ['cloud:k8s']],
+    ['echo `sudo id`', ['exec:root']],
+    ['`sudo id`', ['exec:root']],
+    ['diff <(ssh prod-db cat /etc/hosts) hosts', ['exec:remote:prod-db']],
+    ['(sudo id)', ['exec:root']],
+    ['(cd /srv && ssh prod-db uptime)', ['exec:remote:prod-db']],
+    ['{ sudo id; }', ['exec:root']],
+    ['if true; then sudo id; fi', ['exec:root']],
+    ['if sudo id; then echo ok; fi', ['exec:root']],
+    ['for f in a b; do aws s3 cp $f s3://b/; done', ['cloud:aws']],
+    ['if false; then :; else terraform apply; fi', ['cloud:iac']],
+    ['while true; do crontab job.txt; done', ['exec:persist']],
+    ['! sudo id', ['exec:root']],
+    ['time sudo id', ['exec:root']],
+  ];
+  for (const [cmd, want] of cases) assert.deepEqual(commandCapabilities(cmd), want, cmd);
+});
+
+test('commandCapabilities: redirections using & are not background separators', () => {
+  assert.deepEqual(commandCapabilities('npm test 2>&1 | tee log'), []);
+  assert.deepEqual(commandCapabilities('npm test &> log'), []);
+  assert.deepEqual(commandCapabilities('aws s3 ls >&2'), ['cloud:aws']);
+  // Substitutions inside quotes stay data, like the rest of quoted text.
+  assert.deepEqual(commandCapabilities('echo "$(sudo id)"'), []);
+});
+
+test('commandCapabilities: deeply nested substitutions are bounded, not a stack overflow', () => {
+  assert.doesNotThrow(() => commandCapabilities('$('.repeat(50_000) + 'sudo id'));
+  assert.doesNotThrow(() => commandCapabilities('echo $('.repeat(50_000)));
+});
+
 test('staircase fires on a Claude Code transcript that climbs off a workstation envelope', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'plumbline-cc-'));
   const path = join(dir, 'climb.jsonl');
