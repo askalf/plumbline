@@ -29,11 +29,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # JavaScript (Jazzer.js) has no native sanitizer — OSS-Fuzz rejects
-        # address/memory/undefined for JS ("cannot be fuzzed with sanitizers"),
-        # and the action's config rejects `none`. `coverage` is the value real
-        # JS ClusterFuzzLite projects use with this action version.
-        sanitizer: [coverage]
+        # Fuzz for real. `coverage` selects ClusterFuzzLite's coverage-report runner, not the
+        # fuzzer (oss-fuzz infra/cifuzz/config_utils.py forces mode=coverage for it): every run
+        # before 2026-09-25 built the targets, "ran" them for 3-5 s with an empty corpus and
+        # uploaded a coverage report, while Scorecard credited the config with Fuzzing 10/10.
+        # Jazzer.js ignores the C sanitizer flags, so `address` is the value that reaches the
+        # libFuzzer runner; `none` is rejected by the action.
+        sanitizer: [address]
     steps:
       - name: Build fuzzers (${{ matrix.sanitizer }})
         id: build
