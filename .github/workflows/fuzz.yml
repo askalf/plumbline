@@ -22,6 +22,8 @@ on:
       - 'fuzz/**'
       - 'src/**'
       - 'package.json'
+      - '.clusterfuzzlite/package.json'
+      - '.clusterfuzzlite/package-lock.json'
       - '.github/workflows/fuzz.yml'
 
 permissions:
@@ -43,10 +45,10 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
-      # The pin .clusterfuzzlite/build.sh uses; not a devDependency, so the published tree stays
-      # exactly as committed.
+      # The lockfile .clusterfuzzlite/build.sh installs from; not a devDependency, so the published
+      # tree stays exactly as committed. fuzz/run.mjs resolves Jazzer from .clusterfuzzlite/.
       - name: Install Jazzer.js
-        run: npm install --no-save --no-audit --no-fund @jazzer.js/core@4.0.0
+        run: npm ci --prefix .clusterfuzzlite --no-audit --no-fund
       # The newest saved corpus, whichever run saved it; the save below writes a fresh key each
       # run so the restore-keys prefix always finds the latest.
       - name: Restore the corpus
