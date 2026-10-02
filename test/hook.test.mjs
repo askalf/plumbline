@@ -150,9 +150,9 @@ test('writeSettings keeps a copy of what was there', () => {
 test('reportPathFor cannot be walked out of its directory', () => {
   // The session name comes from a filename on disk; a monitor that writes
   // wherever that name points is a write primitive.
-  assert.equal(reportPathFor('/out', { session: '../../etc/passwd' }), '/out/.._.._etc_passwd.html');
-  assert.equal(reportPathFor('/out', { session: 'a/b' }), '/out/a_b.html');
-  assert.equal(reportPathFor('/out', {}), '/out/session.html');
+  assert.equal(reportPathFor('/out', { session: '../../etc/passwd' }), join('/out', '.._.._etc_passwd.html'));
+  assert.equal(reportPathFor('/out', { session: 'a/b' }), join('/out', 'a_b.html'));
+  assert.equal(reportPathFor('/out', {}), join('/out', 'session.html'));
 });
 
 test('CONTRACT: every malformed payload is a silent no-op, never an error', () => {
