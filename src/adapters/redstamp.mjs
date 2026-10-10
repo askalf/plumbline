@@ -142,15 +142,172 @@ export function verifyChain(rawRecords) {
 }
 
 /**
+ * Optional host-observation sidecar (not part of the redstamp audit schema).
+ *
+ * Joins by audit entry `hash` plus optional operationId/attemptId. Integrity of
+ * the audit chain does **not** prove the observer is truthful — only that the
+ * audit bytes were not mid-chain edited. `targetToolInvoked: false` is trusted
+ * only when `windowComplete === true`.
+ *
+ * @typedef {object} HostObservation
+ * @property {string} auditHash
+ * @property {string} [operationId]
+ * @property {string} [attemptId]
+ * @property {'accepted'|'declined'|'unknown'} [humanResponse]
+ * @property {boolean} [targetToolInvoked]
+ * @property {'ok'|'error'|'unknown'} [executorResult]
+ * @property {boolean} [windowComplete]
+ */
+
+/**
+ * Index host observations by auditHash. Wrong op/attempt pairs are kept but
+ * marked mismatched so a caller can fail closed.
+ *
+ * @param {HostObservation[]} observations
+ * @returns {Map<string, HostObservation[]>}
+ */
+export function indexHostObservations(observations = []) {
+  const byHash = new Map();
+  for (const obs of observations) {
+    if (!obs || typeof obs.auditHash !== 'string' || !obs.auditHash.trim()) continue;
+    const key = obs.auditHash.trim();
+    const list = byHash.get(key) ?? [];
+    list.push(obs);
+    byHash.set(key, list);
+  }
+  return byHash;
+}
+
+/**
+ * Checkpoint shape from redstamp: `{ count, head }` of the audit tip.
+ * Chain verify alone cannot catch a truncated tail; compare against this.
+ *
+ * @returns {{ present: boolean, matches: boolean, reason?: string }}
+ */
+export function verifyCheckpoint(rawRecords, checkpoint) {
+  if (!checkpoint || typeof checkpoint !== 'object') {
+    return { present: false, matches: false, reason: 'checkpoint missing' };
+  }
+  const count = checkpoint.count;
+  const head = checkpoint.head;
+  if (typeof count !== 'number' || typeof head !== 'string') {
+    return { present: true, matches: false, reason: 'checkpoint malformed' };
+  }
+  if (rawRecords.length !== count) {
+    return {
+      present: true,
+      matches: false,
+      reason: `count mismatch: records=${rawRecords.length} checkpoint=${count}`,
+    };
+  }
+  const last = rawRecords[rawRecords.length - 1];
+  if (!last || last.hash !== head) {
+    return { present: true, matches: false, reason: 'head hash mismatch (possible truncated tail)' };
+  }
+  return { present: true, matches: true };
+}
+
+/**
+ * Derive plumbline outcome for one redstamp record, optionally refined by a
+ * joined host observation. Acceptance-dependent fields are clearly optional.
+ *
+ * - block → denied (unchanged)
+ * - allow → ok (unchanged)
+ * - approve without complete observation → ok + note that invocation is unknown
+ * - approve + declined + complete window + not invoked → denied
+ * - approve + accepted + invoked → ok (executorResult may still be error)
+ */
+function outcomeFor(rec, observation) {
+  if (rec.decision === 'block') return { outcome: 'denied', host: null };
+
+  if (rec.decision !== 'approve') {
+    return { outcome: 'ok', host: null };
+  }
+
+  if (!observation) {
+    return {
+      outcome: 'ok',
+      host: {
+        status: 'unknown',
+        reason: 'approve without host observation — invocation unknown',
+      },
+    };
+  }
+
+  if (observation._join === 'mismatch') {
+    return {
+      outcome: 'ok',
+      host: {
+        status: 'unknown',
+        reason: 'host observation join mismatch (operationId/attemptId)',
+      },
+    };
+  }
+
+  if (observation.windowComplete !== true) {
+    return {
+      outcome: 'ok',
+      host: {
+        status: 'unknown',
+        reason: 'incomplete observation window — cannot claim non-invocation',
+        humanResponse: observation.humanResponse ?? 'unknown',
+      },
+    };
+  }
+
+  if (observation.humanResponse === 'declined' && observation.targetToolInvoked === false) {
+    return {
+      outcome: 'denied',
+      host: {
+        status: 'not_invoked',
+        humanResponse: 'declined',
+        targetToolInvoked: false,
+        windowComplete: true,
+      },
+    };
+  }
+
+  if (observation.humanResponse === 'accepted' && observation.targetToolInvoked === true) {
+    return {
+      outcome: observation.executorResult === 'error' ? 'error' : 'ok',
+      host: {
+        status: 'invoked',
+        humanResponse: 'accepted',
+        targetToolInvoked: true,
+        executorResult: observation.executorResult ?? 'unknown',
+        windowComplete: true,
+      },
+    };
+  }
+
+  return {
+    outcome: 'ok',
+    host: {
+      status: 'unknown',
+      reason: 'approve observation present but not authoritative for non-invocation',
+      humanResponse: observation.humanResponse ?? 'unknown',
+      targetToolInvoked: observation.targetToolInvoked,
+      windowComplete: observation.windowComplete === true,
+    },
+  };
+}
+
+/**
  * Convert redstamp audit records into a plumbline trajectory.
  *
  * @param {object[]} records  parsed redstamp audit entries, in log order
  * @param {object} profile    envelope profile (task/capabilities/egress/budget)
- * @param {{session?: string}} [opts]
- * @returns {{events: object[], chain: object}}
+ * @param {{session?: string, hostObservations?: HostObservation[], checkpoint?: {count:number, head:string}}} [opts]
+ * @returns {{events: object[], chain: object, checkpoint: object}}
  */
-export function recordsToTrajectory(records, profile, { session = 'redstamp-audit' } = {}) {
+export function recordsToTrajectory(records, profile, {
+  session = 'redstamp-audit',
+  hostObservations,
+  checkpoint,
+} = {}) {
   const chain = verifyChain(records);
+  const checkpointResult = verifyCheckpoint(records, checkpoint);
+  const obsByHash = indexHostObservations(hostObservations);
   const events = [];
   let seq = 0;
 
@@ -187,6 +344,19 @@ export function recordsToTrajectory(records, profile, { session = 'redstamp-audi
     });
   }
 
+  if (checkpointResult.present && !checkpointResult.matches) {
+    events.push({
+      v: 1,
+      session,
+      seq: seq++,
+      action: 'audit.checkpoint_mismatch',
+      actor: 'redstamp',
+      target: {},
+      outcome: 'error',
+      note: `audit checkpoint mismatch: ${checkpointResult.reason}`,
+    });
+  }
+
   const held = new Set();
   const knownFragments = new Set();
 
@@ -195,9 +365,28 @@ export function recordsToTrajectory(records, profile, { session = 'redstamp-audi
     const action = ACTION_MAP[tool] ?? 'tool.call';
     const input = rec.input ?? {};
 
-    // redstamp block -> plumbline denial. This is the mapping that makes ratchet
-    // reachable: the guard's refusals are the evidence an agent later evaded.
-    const outcome = rec.decision === 'block' ? 'denied' : 'ok';
+    // Optional host observation — join on audit hash (+ op/attempt when supplied).
+    // why[] is treated as tainted; we mine hosts only and never copy it verbatim.
+    let observation = null;
+    if (typeof rec.hash === 'string') {
+      const candidates = obsByHash.get(rec.hash) ?? [];
+      observation = candidates.find((o) => {
+        const opOk = o.operationId === undefined || o.operationId === rec.operationId;
+        const attOk = o.attemptId === undefined || o.attemptId === rec.attemptId;
+        return opOk && attOk;
+      }) ?? null;
+      // Wrong join: observation exists for hash but op/attempt mismatch → unknown.
+      if (!observation && candidates.length > 0) {
+        observation = {
+          auditHash: rec.hash,
+          windowComplete: false,
+          humanResponse: 'unknown',
+          _join: 'mismatch',
+        };
+      }
+    }
+
+    const { outcome, host } = outcomeFor(rec, observation);
 
     const fresh = (CAPABILITY_MAP[tool] ?? []).filter((c) => !held.has(c));
     for (const c of fresh) held.add(c);
@@ -213,6 +402,8 @@ export function recordsToTrajectory(records, profile, { session = 'redstamp-audi
       outcome,
       note: `redstamp: ${tool} tier=${rec.tier ?? '?'} decision=${rec.decision ?? '?'}`,
     };
+    if (host) event.host_observation = host;
+    if (typeof rec.hash === 'string') event.audit_hash = rec.hash;
     if (fresh.length > 0) event.capability_grant = fresh;
 
     // Secret movement, hashed so a value seen twice links produce->consume.
@@ -235,7 +426,7 @@ export function recordsToTrajectory(records, profile, { session = 'redstamp-audi
     events.push(event);
   }
 
-  return { events, chain };
+  return { events, chain, checkpoint: checkpointResult };
 }
 
 /** Read a redstamp audit JSONL file into a trajectory. */

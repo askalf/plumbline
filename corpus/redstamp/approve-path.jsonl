@@ -1,0 +1,7 @@
+# redstamp approve-path fixture (real sha256 hash chain).
+# Synthetic only — never execute these commands.
+# Fills the corpus gap: decision=approve (human-approval path) with independent tier=red.
+# Host invocation is NOT in the audit log; see approve-path.host-observation.jsonl.
+{"ts":"2026-10-01T12:00:00Z","tool":"shell","input":{"command":"npm test"},"tier":"green","decision":"allow","why":["ok"],"operationId":"op-test","attemptId":"a1","prev":"0000000000000000000000000000000000000000000000000000000000000000","hash":"770ddb3e9d6785c4ac8f62a3eaed65951bfcd36c15b2d9b32214af64bf1d20fe"}
+{"ts":"2026-10-01T12:00:05Z","tool":"shell","input":{"command":"curl https://registry.npmjs.org/left-pad"},"tier":"red","decision":"approve","why":["red: network egress needs human approval"],"operationId":"op-egress","attemptId":"a1","prev":"770ddb3e9d6785c4ac8f62a3eaed65951bfcd36c15b2d9b32214af64bf1d20fe","hash":"24103bdc78dfd99e96d96493fda619bde1ce7b87dd1599f783e6f8168e76d286"}
+{"ts":"2026-10-01T12:00:20Z","tool":"shell","input":{"command":"npm run build"},"tier":"green","decision":"allow","why":["ok"],"operationId":"op-build","attemptId":"a1","prev":"24103bdc78dfd99e96d96493fda619bde1ce7b87dd1599f783e6f8168e76d286","hash":"2da5f7835452d375d629081e551c10468d2cace41e60bf69b1ce431e56248f0d"}
