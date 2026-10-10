@@ -31,12 +31,6 @@ permissions:
   contents: read
   pull-requests: read
 
-# Queued, not cancelled: forge dispatches one run per review, and a cancelled run leaves no
-# artifact for it to read.
-concurrency:
-  group: fix-${{ github.repository }}-${{ inputs.pr }}
-  cancel-in-progress: false
-
 jobs:
   fix:
     # Pinned so a change to the fix workflow reaches this repo only through a reviewed bump here.
