@@ -324,6 +324,40 @@ test('conflicting host observations fail closed to unknown (both orders)', () =>
   }
 });
 
+test('conflicting executorResult fail closed to unknown (both orders)', () => {
+  const recs = chain([
+    {
+      tool: 'shell',
+      input: { command: 'curl https://ex.example/x' },
+      tier: 'red',
+      decision: 'approve',
+      why: ['needs human'],
+      operationId: 'op-1',
+      attemptId: 'a1',
+    },
+  ]);
+  const base = {
+    auditHash: recs[0].hash,
+    operationId: 'op-1',
+    attemptId: 'a1',
+    humanResponse: 'accepted',
+    targetToolInvoked: true,
+    windowComplete: true,
+  };
+  const okExec = { ...base, executorResult: 'ok' };
+  const errExec = { ...base, executorResult: 'error' };
+
+  for (const order of [[okExec, errExec], [errExec, okExec]]) {
+    const call = recordsToTrajectory(recs, PROFILE, {
+      hostObservations: order,
+    }).events.find((e) => e.action === 'proc.spawn');
+    assert.equal(call.outcome, 'ok', 'executor conflict must not pick ok vs error by order');
+    assert.equal(call.host_observation?.status, 'unknown');
+    assert.match(call.host_observation.reason, /conflicting host observations/);
+    assert.equal(call.host_observation?.executorResult, undefined);
+  }
+});
+
 test('consistent duplicate host observations still authorize declined path', () => {
   const recs = chain([
     {

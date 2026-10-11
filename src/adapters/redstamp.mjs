@@ -403,7 +403,17 @@ export function recordsToTrajectory(records, profile, {
         const windows = new Set(
           matches.map((o) => (o.windowComplete === true ? 'complete' : 'incomplete')),
         );
-        if (responses.size > 1 || invoked.size > 1 || windows.size > 1) {
+        // executorResult drives outcomeFor on the accepted/invoked path;
+        // normalize missing to 'unknown' so order cannot pick ok vs error.
+        const executors = new Set(
+          matches.map((o) => o.executorResult ?? 'unknown'),
+        );
+        if (
+          responses.size > 1 ||
+          invoked.size > 1 ||
+          windows.size > 1 ||
+          executors.size > 1
+        ) {
           observation = {
             auditHash: rec.hash,
             windowComplete: false,
