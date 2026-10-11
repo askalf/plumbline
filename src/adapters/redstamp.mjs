@@ -244,6 +244,17 @@ function outcomeFor(rec, observation) {
     };
   }
 
+  if (observation._join === 'conflict') {
+    return {
+      outcome: 'ok',
+      host: {
+        status: 'unknown',
+        reason: 'conflicting host observations for join key — invocation unknown',
+        matchCount: observation._matchCount,
+      },
+    };
+  }
+
   if (observation.windowComplete !== true) {
     return {
       outcome: 'ok',
@@ -366,17 +377,46 @@ export function recordsToTrajectory(records, profile, {
     const input = rec.input ?? {};
 
     // Optional host observation — join on audit hash (+ op/attempt when supplied).
-    // why[] is treated as tainted; we mine hosts only and never copy it verbatim.
+    // Collect ALL matching observations; conflicting invocation/response → unknown
+    // independent of sidecar order. why[] is tainted; never copy it verbatim.
     let observation = null;
     if (typeof rec.hash === 'string') {
       const candidates = obsByHash.get(rec.hash) ?? [];
-      observation = candidates.find((o) => {
+      const matches = candidates.filter((o) => {
         const opOk = o.operationId === undefined || o.operationId === rec.operationId;
         const attOk = o.attemptId === undefined || o.attemptId === rec.attemptId;
         return opOk && attOk;
-      }) ?? null;
-      // Wrong join: observation exists for hash but op/attempt mismatch → unknown.
-      if (!observation && candidates.length > 0) {
+      });
+      if (matches.length === 1) {
+        observation = matches[0];
+      } else if (matches.length > 1) {
+        const responses = new Set(matches.map((o) => o.humanResponse ?? 'unknown'));
+        const invoked = new Set(
+          matches.map((o) =>
+            o.targetToolInvoked === true
+              ? 'invoked'
+              : o.targetToolInvoked === false
+                ? 'not_invoked'
+                : 'unknown',
+          ),
+        );
+        const windows = new Set(
+          matches.map((o) => (o.windowComplete === true ? 'complete' : 'incomplete')),
+        );
+        if (responses.size > 1 || invoked.size > 1 || windows.size > 1) {
+          observation = {
+            auditHash: rec.hash,
+            windowComplete: false,
+            humanResponse: 'unknown',
+            _join: 'conflict',
+            _matchCount: matches.length,
+          };
+        } else {
+          // Consistent duplicates — first is fine (order-independent evidence).
+          observation = matches[0];
+        }
+      } else if (candidates.length > 0) {
+        // Wrong join: observation exists for hash but op/attempt mismatch → unknown.
         observation = {
           auditHash: rec.hash,
           windowComplete: false,

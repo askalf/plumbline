@@ -285,6 +285,72 @@ test('host observation join mismatch fails closed to unknown', () => {
   assert.match(call.host_observation.reason, /join mismatch/);
 });
 
+test('conflicting host observations fail closed to unknown (both orders)', () => {
+  const recs = chain([
+    {
+      tool: 'shell',
+      input: { command: 'curl https://ex.example/x' },
+      tier: 'red',
+      decision: 'approve',
+      why: ['needs human'],
+      operationId: 'op-1',
+      attemptId: 'a1',
+    },
+  ]);
+  const declined = {
+    auditHash: recs[0].hash,
+    operationId: 'op-1',
+    attemptId: 'a1',
+    humanResponse: 'declined',
+    targetToolInvoked: false,
+    windowComplete: true,
+  };
+  const accepted = {
+    auditHash: recs[0].hash,
+    operationId: 'op-1',
+    attemptId: 'a1',
+    humanResponse: 'accepted',
+    targetToolInvoked: true,
+    windowComplete: true,
+  };
+
+  for (const order of [[declined, accepted], [accepted, declined]]) {
+    const call = recordsToTrajectory(recs, PROFILE, {
+      hostObservations: order,
+    }).events.find((e) => e.action === 'proc.spawn');
+    assert.equal(call.outcome, 'ok', 'conflict must not authorize denied/ok invocation');
+    assert.equal(call.host_observation?.status, 'unknown');
+    assert.match(call.host_observation.reason, /conflicting host observations/);
+  }
+});
+
+test('consistent duplicate host observations still authorize declined path', () => {
+  const recs = chain([
+    {
+      tool: 'shell',
+      input: { command: 'curl https://ex.example/x' },
+      tier: 'red',
+      decision: 'approve',
+      why: ['needs human'],
+      operationId: 'op-1',
+      attemptId: 'a1',
+    },
+  ]);
+  const obs = {
+    auditHash: recs[0].hash,
+    operationId: 'op-1',
+    attemptId: 'a1',
+    humanResponse: 'declined',
+    targetToolInvoked: false,
+    windowComplete: true,
+  };
+  const call = recordsToTrajectory(recs, PROFILE, {
+    hostObservations: [obs, { ...obs }],
+  }).events.find((e) => e.action === 'proc.spawn');
+  assert.equal(call.outcome, 'denied');
+  assert.equal(call.host_observation?.status, 'not_invoked');
+});
+
 test('verifyCheckpoint catches truncated tail', () => {
   const recs = chain([
     { tool: 'read', input: { path: '/a' }, tier: 'green', decision: 'allow', why: [] },
