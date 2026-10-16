@@ -4,7 +4,7 @@
 
 # `plumbline`
 
-### Per-action authorization can't see an escape assembled from actions it already approved.<br/>plumbline scores the whole **trajectory** — against the job the agent was given.
+### Per-action authorization can't see an escape assembled from actions it already approved.<br/>plumbline scores the whole **trajectory** against the job the agent was given.
 
 <p>
   <a href="https://www.npmjs.com/package/@askalf/plumbline"><img src="https://img.shields.io/npm/v/@askalf/plumbline?color=c9a227&label=npm&logo=npm" alt="npm version"></a>
@@ -12,7 +12,7 @@
   <a href="https://github.com/askalf/plumbline/actions/workflows/ci.yml"><img src="https://github.com/askalf/plumbline/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/askalf/plumbline/actions/workflows/codeql.yml"><img src="https://github.com/askalf/plumbline/actions/workflows/codeql.yml/badge.svg" alt="CodeQL"></a>
   <a href="https://scorecard.dev/viewer/?uri=github.com/askalf/plumbline"><img src="https://api.scorecard.dev/projects/github.com/askalf/plumbline/badge" alt="OpenSSF Scorecard"></a>
-  <!-- OpenSSF Best Practices — uncomment once enrolled at https://www.bestpractices.dev and replace PROJECT_ID:
+  <!-- OpenSSF Best Practices: uncomment once enrolled at https://www.bestpractices.dev and replace PROJECT_ID:
   <a href="https://www.bestpractices.dev/projects/PROJECT_ID"><img src="https://www.bestpractices.dev/projects/PROJECT_ID/badge" alt="OpenSSF Best Practices"></a>
   -->
   <a href="https://github.com/askalf/plumbline/blob/main/LICENSE"><img src="https://img.shields.io/npm/l/@askalf/plumbline?color=c9a227" alt="License"></a>
@@ -25,7 +25,7 @@
 
 Halts a reconstruction of a real 2026 sandbox escape **at seq 18, nine events before code execution on the third party**,<br>where every individual step was authorized. Validated on **4,898 real agent sessions / 84,274 tool calls** ([coverage per detector](docs/evidence.md)).
 
-<sub><code>npm i -g @askalf/plumbline</code> · <strong>0</strong> runtime dependencies · <a href="https://www.npmjs.com/package/@askalf/plumbline">SLSA-attested</a> every release · MIT · out-of-band &amp; read-only — it never blocks an action · nothing leaves your machine · the optional intent layer runs on a <strong>local</strong> model, by design</sub>
+<sub><code>npm i -g @askalf/plumbline</code> · <strong>0</strong> runtime dependencies · <a href="https://www.npmjs.com/package/@askalf/plumbline">SLSA-attested</a> every release · MIT · out-of-band &amp; read-only (it never blocks an action) · nothing leaves your machine · the optional intent layer runs on a <strong>local</strong> model, by design</sub>
 
 <sub><a href="#start-in-60-seconds">Start</a> · <a href="#watch-the-escape-climb">Replay</a> · <a href="#how-it-works">How it works</a> · <a href="#the-detectors">Detectors</a> · <a href="#what-else-it-does">Hook · CI · library</a> · <a href="#evidence-and-limits">Evidence</a> · <a href="#reference">Reference</a></sub>
 
@@ -38,10 +38,10 @@ Halts a reconstruction of a real 2026 sandbox escape **at seq 18, nine events be
 ```bash
 npm install -g @askalf/plumbline                                   # zero runtime dependencies, Node >= 20
 plumbline scan ~/.claude/projects --profile=dev-workstation --report   # what did your coding agent actually do? read-only
-plumbline replay corpus/exploitgym.jsonl                           # replay the incident — watch it halt before the breach
+plumbline replay corpus/exploitgym.jsonl                           # replay the incident; watch it halt before the breach
 ```
 
-The scan prints a verdict per session, the clean rate, and — in the same type size — which detectors *could* have fired, because a clean rate with dead detectors behind it is the failure this project has shipped and caught three times. `plumbline install-hook` wires the same scoring into Claude Code's `Stop` hook: one line on stderr, only when a session drifts. OpenAI, Anthropic, LangChain, OpenTelemetry and redstamp logs are [one flag away](docs/running.md#any-other-harness-is-one-flag-away).
+The scan prints a verdict per session, the clean rate, and, in the same type size, which detectors *could* have fired, because a clean rate with dead detectors behind it is the failure this project has shipped and caught three times. `plumbline install-hook` wires the same scoring into Claude Code's `Stop` hook: one line on stderr, only when a session drifts. OpenAI, Anthropic, LangChain, OpenTelemetry and redstamp logs are [one flag away](docs/running.md#any-other-harness-is-one-flag-away).
 
 ## The gap this fills
 
@@ -51,13 +51,13 @@ Now look at the individual actions:
 
 | Action | Any gate that should refuse this? |
 |---|---|
-| Request a package from the proxy | No — that is what the proxy is for |
-| Follow an HTTP redirect | No — normal HTTP |
+| Request a package from the proxy | No, that is what the proxy is for |
+| Follow an HTTP redirect | No, normal HTTP |
 | Read the returned body | No |
 | Store a string | No |
 | Concatenate two strings | No |
 
-**Every step was authorized. The sequence was the attack.** No per-call guard — including our own [redstamp](https://github.com/askalf/redstamp) — is structurally capable of seeing that, because each call is judged alone. Anomaly detection asks *"is this unusual?"* The useful question is **"is this still the job?"** — which requires knowing what the job was.
+**Every step was authorized. The sequence was the attack.** No per-call guard, including our own [redstamp](https://github.com/askalf/redstamp), is structurally capable of seeing that, because each call is judged alone. Anomaly detection asks *"is this unusual?"* The useful question is **"is this still the job?"** That requires knowing what the job was.
 
 ## Watch the escape climb
 
@@ -88,7 +88,7 @@ Now look at the individual actions:
   actionable seq 16 - 2 steps before the halt threshold
 ```
 
-The cloud-metadata SSRF pivot — the move that started the real breach — trips `metadata` at seq 16 and drift crosses into `confirm`. It **halts at seq 18**, nine events before code execution on the third party (seq 27) and thirteen before exfiltration (seq 31).
+The cloud-metadata SSRF pivot, the move that started the real breach, trips `metadata` at seq 16 and drift crosses into `confirm`. It **halts at seq 18**, nine events before code execution on the third party (seq 27) and thirteen before exfiltration (seq 31).
 
 ## How it works
 
@@ -104,10 +104,10 @@ The cloud-metadata SSRF pivot — the move that started the real breach — trip
    redstamp log  ─┘             action  seq n                  metadata … ─┘     observe → warn → confirm → halt
 ```
 
-1. **An adapter** translates the harness's own log into an open [trajectory schema](schema/trajectory.schema.json). Adapters see real values and emit only measurements — `{id, len, entropy}` for a secret — so plumbline never holds one.
+1. **An adapter** translates the harness's own log into an open [trajectory schema](schema/trajectory.schema.json). Adapters see real values and emit only measurements (`{id, len, entropy}` for a secret), so plumbline never holds one.
 2. **The envelope** is the reference. Every trajectory declares the job: the task, the capabilities it legitimately needs, where it may talk, and a budget. Profiles ship for common shapes (`dev-workstation`, `ci-runner`, `eval-sandbox`, `agent`, …). An undeclared trajectory reads as *everything off-envelope*, and the report says so rather than assuming benign intent.
 3. **Eight deterministic detectors** each measure one way the trajectory departs from the job. Within one action the strongest signal counts; across actions they combine by noisy-OR, `drift = 1 − Π(1 − s)`.
-4. **The output is a drift score and an evidence bundle — never allow/deny.** Levels ladder `observe → warn → confirm → halt`; what a level *means* is the caller's decision, and plumbline sits out of band where it cannot block anything.
+4. **The output is a drift score and an evidence bundle, never allow/deny.** Levels ladder `observe → warn → confirm → halt`; what a level *means* is the caller's decision, and plumbline sits out of band where it cannot block anything.
 
 ```json
 {
@@ -125,10 +125,10 @@ The cloud-metadata SSRF pivot — the move that started the real breach — trip
 
 | Approach | Asks | Sees an escape built from approved steps? | Runs where |
 |---|---|---|---|
-| Per-call guard ([redstamp](https://github.com/askalf/redstamp)) | *is this call allowed?* | No — each call is judged alone | inline, blocks |
+| Per-call guard ([redstamp](https://github.com/askalf/redstamp)) | *is this call allowed?* | No, each call is judged alone | inline, blocks |
 | Anomaly detection | *is this unusual?* | Only if the escape is statistically odd; a patient one is not | out of band |
-| A model as judge | *does this look bad?* | Sometimes — and the frontier APIs refused to look at the real attack | wherever the model is |
-| **plumbline** | ***is this still the job?*** | **Yes — the drift from a declared envelope is the signal** | out of band, read-only, local |
+| A model as judge | *does this look bad?* | Sometimes, and the frontier APIs refused to look at the real attack | wherever the model is |
+| **plumbline** | ***is this still the job?*** | **Yes, the drift from a declared envelope is the signal** | out of band, read-only, local |
 
 The layers are not rivals. A per-call guard stops what it can see; plumbline reads the guard's own audit log and catches what it let through one call at a time. That loop is the point of [Own Your Stack](#own-your-stack).
 
@@ -138,16 +138,16 @@ Eight deterministic detectors, each measuring one way a trajectory departs from 
 
 | Detector | Catches | Notes |
 |---|---|---|
-| `staircase` | Capability accretion beyond the envelope | The primary signal. Thresholdless — an escape that *acquires* reach cannot hide from it. Four authorized grants compound into a verdict no single grant justifies. |
+| `staircase` | Capability accretion beyond the envelope | The primary signal. Thresholdless: an escape that *acquires* reach cannot hide from it. Four authorized grants compound into a verdict no single grant justifies. |
 | `reassembly` | Fragmented credentials converging on one egress | Defeats token fragmentation by looking for the *assembly*, not the secret. Needs 2+ fragments from separate actions. |
 | `egress` | Off-envelope writes, credentialed egress, C2 rotation | Distinguishes reads from writes; rotation across public staging hosts fires at three distinct hosts. |
-| `ratchet` | A guard denying an action, then an equivalent one succeeding | Keyed on the invoked binary, and **reset by any human turn** — if oversight adjudicated it, the retry is not evasion. |
+| `ratchet` | A guard denying an action, then an equivalent one succeeding | Keyed on the invoked binary, and **reset by any human turn**: if oversight adjudicated it, the retry is not evasion. |
 | `recon` | Fingerprinting: many endpoints, high failure ratio, no state change | Capped low. Its value is arriving early, not being decisive. |
 | `fanout` | Ephemeral instance sprawl beyond the task's needs | Collapses a swarm back into one logical trajectory. |
-| `metadata` | Requests to the cloud instance-metadata endpoint | Thresholdless, envelope-independent — the SSRF pivot that started the breach. |
+| `metadata` | Requests to the cloud instance-metadata endpoint | Thresholdless, envelope-independent: the SSRF pivot that started the breach. |
 | `siphon` | Ambient credential material converging on off-provider egress | Reads a credential store the envelope never named, then sends data somewhere that is not that provider. Allowlisted destinations do **not** clear it. Tops out at `confirm`. |
 
-Six measure *drift*; `metadata` and `siphon` are **known-location** detectors — they encode facts about the world (where cloud metadata answers, where AWS keeps its keys) rather than a threshold an attacker can tune under. Full method, including a **"cannot see"** section for every detector: [DETECTORS.md](DETECTORS.md).
+Six measure *drift*; `metadata` and `siphon` are **known-location** detectors: they encode facts about the world (where cloud metadata answers, where AWS keeps its keys) rather than a threshold an attacker can tune under. Full method, including a **"cannot see"** section for every detector: [DETECTORS.md](DETECTORS.md).
 
 ## What else it does
 
@@ -173,31 +173,31 @@ Validated on **4,898 real agent sessions / 84,274 tool calls** across two indepe
 
 ## Contributing
 
-The most useful contribution is **an adapter for a harness we don't cover** — detection logic is worthless if it can't reach your trajectories. Node ≥ 20, ESM, no build step, zero dependencies, `node --test test/*.test.mjs` (controls included) must pass. See [CONTRIBUTING.md](CONTRIBUTING.md).
+The most useful contribution is **an adapter for a harness we don't cover**. Detection logic is worthless if it can't reach your trajectories. Node ≥ 20, ESM, no build step, zero dependencies, `node --test test/*.test.mjs` (controls included) must pass. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
 
 ## Own Your Stack
 
-plumbline is the trajectory monitor of **[Own Your Stack](https://github.com/askalf)** — open tools for owning your AI infrastructure instead of renting it by the token. One subscription. Your box. Your terms.
+plumbline is the trajectory monitor of **[Own Your Stack](https://github.com/askalf)**: open tools for owning your AI infrastructure instead of renting it by the token. One subscription. Your box. Your terms.
 
-- **[dario](https://github.com/askalf/dario)** — own your routing
-- **[browser-bridge](https://github.com/askalf/browser-bridge)** — own your browser
-- **[redstamp](https://github.com/askalf/redstamp)** — own your agent security
-- **[plumbline](https://github.com/askalf/plumbline)** — own your agent trajectory _(you are here)_
-- **[truecopy](https://github.com/askalf/truecopy)** — own your agent skills · [truecopy-action](https://github.com/askalf/truecopy-action) gates them in CI
-- **[cordon](https://github.com/askalf/cordon)** — own your prompts
-- **[fieldpass](https://github.com/askalf/browser-bridge/tree/master/policy)** — own your agent browser (now browser-bridge's `policy/` layer)
-- **[amnesia](https://github.com/askalf/amnesia)** — own your search
-- **[checkout-with-retry](https://github.com/askalf/checkout-with-retry)** — own your CI with retrying checkouts
-- **[askalf](https://askalf.org)** — own your operation
+- **[dario](https://github.com/askalf/dario)**: own your routing
+- **[browser-bridge](https://github.com/askalf/browser-bridge)**: own your browser
+- **[redstamp](https://github.com/askalf/redstamp)**: own your agent security
+- **[plumbline](https://github.com/askalf/plumbline)**: own your agent trajectory _(you are here)_
+- **[truecopy](https://github.com/askalf/truecopy)**: own your agent skills · [truecopy-action](https://github.com/askalf/truecopy-action) gates them in CI
+- **[cordon](https://github.com/askalf/cordon)**: own your prompts
+- **[fieldpass](https://github.com/askalf/browser-bridge/tree/master/policy)**: own your agent browser (now browser-bridge's `policy/` layer)
+- **[amnesia](https://github.com/askalf/amnesia)**: own your search
+- **[checkout-with-retry](https://github.com/askalf/checkout-with-retry)**: own your CI with retrying checkouts
+- **[askalf](https://askalf.org)**: own your operation
 
 ---
 
 ## Built by Thomas Sprayberry
 
-plumbline is part of **Own Your Stack** — the open toolkit behind **[Sprayberry Labs](https://sprayberrylabs.com)**, the software studio with one human on staff, run by [askalf](https://askalf.org), the AI operation these tools are part of.
+plumbline is part of **Own Your Stack**: the open toolkit behind **[Sprayberry Labs](https://sprayberrylabs.com)**, the software studio with one human on staff, run by [askalf](https://askalf.org), the AI operation these tools are part of.
 
 Built in the open, scars included. Follow the build → **[@ask_alf](https://x.com/ask_alf)** · **[ownyourstack.sprayberrylabs.com](https://ownyourstack.sprayberrylabs.com)**
