@@ -1,0 +1,5 @@
+# Synthetic host-observation sidecar (NOT redstamp audit bytes).
+# Join key: auditHash + operationId + attemptId.
+# Integrity of the audit chain does not prove observer truth or policy correctness.
+# Only windowComplete=true supports an authoritative "not invoked" claim.
+{"auditHash":"24103bdc78dfd99e96d96493fda619bde1ce7b87dd1599f783e6f8168e76d286","operationId":"op-egress","attemptId":"a1","humanResponse":"declined","targetToolInvoked":false,"executorResult":"unknown","windowComplete":true,"note":"declined+complete non-invocation"}
