@@ -1,6 +1,6 @@
 # Redline fix: when Redline requests changes on a pull request here, forge dispatches this run
 # with the PR, the head Redline reviewed and the review. The fix itself is computed by
-# askalf/ci (redline-fix-run.yml) on this repository's non-root exec runner and uploaded as
+# askalf/ci (redline-fix-run.yml) on this repository's fix-lane runner and uploaded as
 # the redline-fix artifact. Nothing here pushes or comments, and no token that could is on the
 # runner: forge verifies the artifact and pushes the fix to the PR branch with its own token.
 name: Redline fix
@@ -34,12 +34,12 @@ permissions:
 jobs:
   fix:
     # Pinned so a change to the fix workflow reaches this repo only through a reviewed bump here.
-    uses: askalf/ci/.github/workflows/redline-fix-run.yml@3ff81710acee0124cebda98e6400787035280a99 # main 2026-10-10, askalf/ci#42
+    uses: askalf/ci/.github/workflows/redline-fix-run.yml@b4c6827c0842ecaa31795fbf83c591d4c88dc205 # main 2026-10-18, askalf/ci#65
     with:
-      redline-ref: 3ff81710acee0124cebda98e6400787035280a99
-      # plumbline-exec is this repository's ephemeral exec runner: its own non-root account, one job
-      # per registration, no credential but the fix lane's own model key.
-      runner-label: plumbline-exec
+      redline-ref: b4c6827c0842ecaa31795fbf83c591d4c88dc205
+      # plumbline-fix is this repository's fix-lane runner: its own non-root account, one job
+      # per registration. Only this workflow targets that label.
+      runner-label: plumbline-fix
       pr: ${{ inputs.pr }}
       head: ${{ inputs.head }}
       review: ${{ inputs.review }}
