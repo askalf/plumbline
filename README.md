@@ -191,7 +191,7 @@ plumbline is the trajectory monitor of **[Own Your Stack](https://github.com/ask
 - **[cordon](https://github.com/askalf/cordon)**: own your prompts
 - **[fieldpass](https://github.com/askalf/browser-bridge/tree/master/policy)**: own your agent browser (now browser-bridge's `policy/` layer)
 - **[amnesia](https://github.com/askalf/amnesia)**: own your search
-- **[checkout-with-retry](https://github.com/askalf/checkout-with-retry)**: own your CI with retrying checkouts
+- **[ci](https://github.com/askalf/ci)**: own your CI · gating review in CI and [retrying checkouts](https://github.com/askalf/ci/tree/main/actions/checkout-with-retry)
 - **[askalf](https://askalf.org)**: own your operation
 
 ---
