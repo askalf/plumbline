@@ -12,6 +12,19 @@ notes.
 
 ## [Unreleased]
 
+### Added
+
+- **redstamp checkpoints are checked.** A hash chain cannot show that records
+  were cut off the end, because a valid prefix still verifies. The redstamp
+  adapter now reads the checkpoint redstamp writes beside a log
+  (`<log>.chk`, `{ count, head }`) and emits `audit.checkpoint_mismatch` when
+  the log has fewer chained records than the checkpoint or the `count`-th one
+  does not have its head. As in redstamp's own `verifyAuditFile`, only chained
+  records count and a log that grew past its checkpoint still matches.
+  `plumbline scan --adapter=redstamp` runs the check and reports it next to
+  `chain`. New fixture `corpus/redstamp/approve-path.jsonl` covers
+  `decision=approve` at `tier=red`.
+
 ### Fixed
 
 - **Shell capabilities are read through background jobs, substitutions and

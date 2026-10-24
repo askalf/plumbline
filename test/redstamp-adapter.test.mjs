@@ -1,7 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { recordsToTrajectory, verifyChain } from '../src/adapters/redstamp.mjs';
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { readCheckpoint, readRedstampAudit, recordsToTrajectory, verifyChain, verifyCheckpoint } from '../src/adapters/redstamp.mjs';
+import { scanRedstampAudit } from '../src/scan.mjs';
 import { normalizeEvent } from '../src/schema.mjs';
 import { assess } from '../src/index.mjs';
 
@@ -147,4 +152,111 @@ test('an empty log yields only the declare event', () => {
   const { events } = recordsToTrajectory([], PROFILE);
   assert.equal(events.length, 1);
   assert.equal(events[0].action, 'session.declare');
+});
+
+// ---------------------------------------------------- checkpoint ---------
+
+const CORPUS = join(dirname(fileURLToPath(import.meta.url)), '..', 'corpus', 'redstamp');
+const SCHEMA = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'schema', 'trajectory.schema.json'), 'utf8'));
+
+const THREE = () => chain([
+  { tool: 'shell', input: { command: 'npm test' }, tier: 'green', decision: 'allow', why: ['ok'] },
+  { tool: 'shell', input: { command: 'curl https://ex.example/x' }, tier: 'red', decision: 'approve', why: ['needs human'] },
+  { tool: 'shell', input: { command: 'npm run build' }, tier: 'green', decision: 'allow', why: ['ok'] },
+]);
+
+test('an approve record maps to ok and every event stays inside the published schema', () => {
+  const { events } = recordsToTrajectory(THREE(), PROFILE, { checkpoint: { count: 9, head: 'x' } });
+  assert.equal(events.find((e) => e.note?.includes('decision=approve')).outcome, 'ok');
+  const allowed = new Set(Object.keys(SCHEMA.properties));
+  for (const e of events) {
+    for (const k of Object.keys(e)) assert.ok(allowed.has(k), `${e.action} carries ${k}, which the schema does not define`);
+  }
+});
+
+test('a checkpoint catches a truncated tail the chain alone passes', () => {
+  const recs = THREE();
+  const cut = recs.slice(0, 2);
+  assert.equal(verifyChain(cut).intact, true, 'a prefix still verifies');
+  const { events, checkpoint } = recordsToTrajectory(cut, PROFILE, { checkpoint: { count: 3, head: recs[2].hash } });
+  assert.equal(checkpoint.matches, false);
+  assert.match(checkpoint.reason, /^truncated/);
+  assert.ok(events.some((e) => e.action === 'audit.checkpoint_mismatch'));
+});
+
+test('a log that grew past its checkpoint still matches', () => {
+  const recs = THREE();
+  const r = verifyCheckpoint(recs, { count: 2, head: recs[1].hash });
+  assert.deepEqual(r, { present: true, matches: true });
+  const { events } = recordsToTrajectory(recs, PROFILE, { checkpoint: { count: 2, head: recs[1].hash } });
+  assert.ok(!events.some((e) => e.action === 'audit.checkpoint_mismatch'));
+});
+
+test('a rewritten prefix of the same length is a rollback', () => {
+  const other = chain([
+    { tool: 'shell', input: { command: 'ls' }, tier: 'green', decision: 'allow', why: ['ok'] },
+    { tool: 'shell', input: { command: 'pwd' }, tier: 'green', decision: 'allow', why: ['ok'] },
+    { tool: 'shell', input: { command: 'id' }, tier: 'green', decision: 'allow', why: ['ok'] },
+  ]);
+  const r = verifyCheckpoint(other, { count: 3, head: THREE()[2].hash });
+  assert.equal(r.matches, false);
+  assert.match(r.reason, /^rollback/);
+});
+
+test('unchained lines do not count toward the checkpoint', () => {
+  const recs = THREE();
+  const mixed = [recs[0], { ts: 't', tool: 'shell', tier: 'green', decision: 'allow', why: ['daemon down'] }, recs[1], recs[2]];
+  assert.deepEqual(verifyCheckpoint(mixed, { count: 3, head: recs[2].hash }), { present: true, matches: true });
+});
+
+test('no checkpoint means no check, and a malformed one reports as a mismatch', () => {
+  assert.deepEqual(verifyCheckpoint(THREE(), undefined), { present: false, matches: false });
+  for (const bad of [{}, { count: 0, head: 'x' }, { count: 1.5, head: 'x' }, { count: 1 }]) {
+    const r = verifyCheckpoint(THREE(), bad);
+    assert.equal(r.present, true);
+    assert.equal(r.matches, false);
+    assert.equal(r.reason, 'checkpoint malformed');
+  }
+});
+
+test('corpus approve-path: chain intact, the .chk beside the log is read and matches', async () => {
+  const { events, chain: c, checkpoint } = await readRedstampAudit(join(CORPUS, 'approve-path.jsonl'), PROFILE);
+  assert.equal(c.intact, true);
+  assert.deepEqual(checkpoint, { present: true, matches: true });
+  const calls = events.filter((e) => e.action === 'proc.spawn');
+  assert.equal(calls.length, 3);
+  assert.ok(calls.every((e) => e.outcome === 'ok'), 'approve is ok: the record does not say whether the call ran');
+});
+
+test('scan reaches the checkpoint: a truncated copy of the corpus log is flagged', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'plumbline-redstamp-'));
+  const log = join(dir, 'audit.jsonl');
+  const lines = readFileSync(join(CORPUS, 'approve-path.jsonl'), 'utf8').trimEnd().split('\n');
+  writeFileSync(log, lines.slice(0, -1).join('\n') + '\n');
+  copyFileSync(join(CORPUS, 'approve-path.jsonl.chk'), `${log}.chk`);
+  const { results } = await scanRedstampAudit(log, PROFILE);
+  assert.equal(results[0].chain.intact, true, 'the chain alone passes the cut log');
+  assert.equal(results[0].checkpoint.matches, false);
+  assert.match(results[0].checkpoint.reason, /^truncated/);
+});
+
+test('a checkpoint that exists but cannot be read reports as a mismatch, not as absent', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'plumbline-redstamp-'));
+  const log = join(dir, 'audit.jsonl');
+  copyFileSync(join(CORPUS, 'approve-path.jsonl'), log);
+  assert.equal(await readCheckpoint(log), undefined, 'no .chk at all: no check');
+  mkdirSync(`${log}.chk`); // reading a directory fails with EISDIR, not ENOENT
+  assert.deepEqual(await readCheckpoint(log), {});
+  const { events, checkpoint } = await readRedstampAudit(log, PROFILE);
+  assert.deepEqual(checkpoint, { present: true, matches: false, reason: 'checkpoint malformed' });
+  assert.ok(events.some((e) => e.action === 'audit.checkpoint_mismatch'));
+});
+
+test('a checkpoint that is not JSON reports as a mismatch', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'plumbline-redstamp-'));
+  const log = join(dir, 'audit.jsonl');
+  copyFileSync(join(CORPUS, 'approve-path.jsonl'), log);
+  writeFileSync(`${log}.chk`, 'not json');
+  const { checkpoint } = await readRedstampAudit(log, PROFILE);
+  assert.equal(checkpoint.reason, 'checkpoint malformed');
 });

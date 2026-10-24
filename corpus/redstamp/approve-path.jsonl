@@ -1,0 +1,7 @@
+# redstamp approve-path fixture (real sha256 hash chain). Synthetic: never execute these commands.
+# decision=approve at tier=red is the human-approval path. The record holds the decision, not
+# whether the call then ran, so plumbline maps it to ok. approve-path.jsonl.chk is the checkpoint
+# redstamp writes beside the log; it pins the first 3 chained records.
+{"ts":"2026-10-01T12:00:00Z","tool":"shell","input":{"command":"npm test"},"tier":"green","decision":"allow","why":["ok"],"prev":"0000000000000000000000000000000000000000000000000000000000000000","hash":"f800560aebe1c75e61d0da7cf5def61794d00a4e0232c1f5e19335fff8ba0deb"}
+{"ts":"2026-10-01T12:00:05Z","tool":"shell","input":{"command":"curl https://registry.npmjs.org/left-pad"},"tier":"red","decision":"approve","why":["red: network egress needs human approval"],"prev":"f800560aebe1c75e61d0da7cf5def61794d00a4e0232c1f5e19335fff8ba0deb","hash":"83695f2223ef84e4d6980ae34b6972f6c926d81dae0100cb799dadb3694aa9e7"}
+{"ts":"2026-10-01T12:00:20Z","tool":"shell","input":{"command":"npm run build"},"tier":"green","decision":"allow","why":["ok"],"prev":"83695f2223ef84e4d6980ae34b6972f6c926d81dae0100cb799dadb3694aa9e7","hash":"aad11de29fef39c2c916486146998f42dc771076e3b1309be183bfe8adf52e8d"}

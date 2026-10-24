@@ -23,6 +23,10 @@
  *     agent editing its own trail). The check is inline sha256; no dependency on
  *     redstamp itself, so plumbline stays zero-dependency.
  *
+ * A chain alone cannot show that records were cut off the end: a valid prefix
+ * still verifies. redstamp's checkpoint (`<log>.chk`, `{ count, head }`) pins
+ * that prefix, and this adapter checks it the way redstamp's verifyAuditFile does.
+ *
  * redstamp audit record shape (chained via AuditLog, or unchained via cc-hook):
  *   { ts, tool, input?, tier, decision, why[], prev?, hash? }
  * where tool is redstamp's normalized name (shell|write|edit|read|grep|list|
@@ -30,6 +34,7 @@
  */
 
 import { createReadStream } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { createInterface } from 'node:readline';
 import { createHash } from 'node:crypto';
 import { entropyOf } from '../schema.mjs';
@@ -142,15 +147,42 @@ export function verifyChain(rawRecords) {
 }
 
 /**
+ * Check a redstamp checkpoint `{ count, head }` against the records, as
+ * redstamp's verifyAuditFile does. Only chained records (string `prev` and
+ * `hash`) count; unchained lines, such as those redstamp-hook writes while its
+ * daemon is down, are skipped. The `count`-th chained record must have hash
+ * `head`, so a log that grew past the checkpoint still matches, and one with
+ * fewer chained records than `count` was truncated.
+ *
+ * @returns {{ present: boolean, matches: boolean, reason?: string }}
+ */
+export function verifyCheckpoint(rawRecords, checkpoint) {
+  if (checkpoint == null) return { present: false, matches: false };
+  const { count, head } = checkpoint;
+  if (!Number.isInteger(count) || count < 1 || typeof head !== 'string') {
+    return { present: true, matches: false, reason: 'checkpoint malformed' };
+  }
+  const chained = rawRecords.filter((r) => typeof r.prev === 'string' && typeof r.hash === 'string');
+  if (chained.length < count) {
+    return { present: true, matches: false, reason: `truncated: ${chained.length} chained records, checkpoint has ${count}` };
+  }
+  if (chained[count - 1].hash !== head) {
+    return { present: true, matches: false, reason: `rollback: chained record ${count} does not have the checkpoint head` };
+  }
+  return { present: true, matches: true };
+}
+
+/**
  * Convert redstamp audit records into a plumbline trajectory.
  *
  * @param {object[]} records  parsed redstamp audit entries, in log order
  * @param {object} profile    envelope profile (task/capabilities/egress/budget)
- * @param {{session?: string}} [opts]
- * @returns {{events: object[], chain: object}}
+ * @param {{session?: string, checkpoint?: {count: number, head: string}}} [opts]
+ * @returns {{events: object[], chain: object, checkpoint: object}}
  */
-export function recordsToTrajectory(records, profile, { session = 'redstamp-audit' } = {}) {
+export function recordsToTrajectory(records, profile, { session = 'redstamp-audit', checkpoint } = {}) {
   const chain = verifyChain(records);
+  const checkpointResult = verifyCheckpoint(records, checkpoint);
   const events = [];
   let seq = 0;
 
@@ -184,6 +216,19 @@ export function recordsToTrajectory(records, profile, { session = 'redstamp-audi
       target: {},
       outcome: 'error',
       note: `hash chain broken at record ${chain.brokenAt} - the audit trail was altered`,
+    });
+  }
+
+  if (checkpointResult.present && !checkpointResult.matches) {
+    events.push({
+      v: 1,
+      session,
+      seq: seq++,
+      action: 'audit.checkpoint_mismatch',
+      actor: 'redstamp',
+      target: {},
+      outcome: 'error',
+      note: `audit checkpoint mismatch: ${checkpointResult.reason}`,
     });
   }
 
@@ -235,11 +280,24 @@ export function recordsToTrajectory(records, profile, { session = 'redstamp-audi
     events.push(event);
   }
 
-  return { events, chain };
+  return { events, chain, checkpoint: checkpointResult };
+}
+
+/**
+ * Read the checkpoint redstamp writes beside a log (`<log>.chk`). Undefined
+ * only when the file does not exist; one that exists but cannot be read or
+ * parsed is returned as `{}` so it reports as malformed rather than silently
+ * switching the check off.
+ */
+export async function readCheckpoint(file) {
+  let text;
+  try { text = await readFile(`${file}.chk`, 'utf8'); } catch (e) { return e?.code === 'ENOENT' ? undefined : {}; }
+  try { return JSON.parse(text) ?? {}; } catch { return {}; }
 }
 
 /** Read a redstamp audit JSONL file into a trajectory. */
 export async function readRedstampAudit(file, profile, opts = {}) {
+  if (opts.checkpoint === undefined) opts = { ...opts, checkpoint: await readCheckpoint(file) };
   const rl = createInterface({ input: createReadStream(file, { encoding: 'utf8' }), crlfDelay: Infinity });
   const records = [];
   for await (const line of rl) {
