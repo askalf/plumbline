@@ -1,11 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { copyFileSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readRedstampAudit, recordsToTrajectory, verifyChain, verifyCheckpoint } from '../src/adapters/redstamp.mjs';
+import { readCheckpoint, readRedstampAudit, recordsToTrajectory, verifyChain, verifyCheckpoint } from '../src/adapters/redstamp.mjs';
 import { scanRedstampAudit } from '../src/scan.mjs';
 import { normalizeEvent } from '../src/schema.mjs';
 import { assess } from '../src/index.mjs';
@@ -238,4 +238,25 @@ test('scan reaches the checkpoint: a truncated copy of the corpus log is flagged
   assert.equal(results[0].chain.intact, true, 'the chain alone passes the cut log');
   assert.equal(results[0].checkpoint.matches, false);
   assert.match(results[0].checkpoint.reason, /^truncated/);
+});
+
+test('a checkpoint that exists but cannot be read reports as a mismatch, not as absent', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'plumbline-redstamp-'));
+  const log = join(dir, 'audit.jsonl');
+  copyFileSync(join(CORPUS, 'approve-path.jsonl'), log);
+  assert.equal(await readCheckpoint(log), undefined, 'no .chk at all: no check');
+  mkdirSync(`${log}.chk`); // reading a directory fails with EISDIR, not ENOENT
+  assert.deepEqual(await readCheckpoint(log), {});
+  const { events, checkpoint } = await readRedstampAudit(log, PROFILE);
+  assert.deepEqual(checkpoint, { present: true, matches: false, reason: 'checkpoint malformed' });
+  assert.ok(events.some((e) => e.action === 'audit.checkpoint_mismatch'));
+});
+
+test('a checkpoint that is not JSON reports as a mismatch', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'plumbline-redstamp-'));
+  const log = join(dir, 'audit.jsonl');
+  copyFileSync(join(CORPUS, 'approve-path.jsonl'), log);
+  writeFileSync(`${log}.chk`, 'not json');
+  const { checkpoint } = await readRedstampAudit(log, PROFILE);
+  assert.equal(checkpoint.reason, 'checkpoint malformed');
 });

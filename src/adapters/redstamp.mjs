@@ -285,12 +285,13 @@ export function recordsToTrajectory(records, profile, { session = 'redstamp-audi
 
 /**
  * Read the checkpoint redstamp writes beside a log (`<log>.chk`). Undefined
- * when there is none; an unreadable one is returned as `{}` so it reports as
- * malformed rather than silently switching the check off.
+ * only when the file does not exist; one that exists but cannot be read or
+ * parsed is returned as `{}` so it reports as malformed rather than silently
+ * switching the check off.
  */
 export async function readCheckpoint(file) {
   let text;
-  try { text = await readFile(`${file}.chk`, 'utf8'); } catch { return undefined; }
+  try { text = await readFile(`${file}.chk`, 'utf8'); } catch (e) { return e?.code === 'ENOENT' ? undefined : {}; }
   try { return JSON.parse(text) ?? {}; } catch { return {}; }
 }
 
