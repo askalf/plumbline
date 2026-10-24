@@ -1,16 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { copyFileSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import {
-  recordsToTrajectory,
-  verifyChain,
-  verifyCheckpoint,
-  indexHostObservations,
-  readRedstampAudit,
-} from '../src/adapters/redstamp.mjs';
+import { readRedstampAudit, recordsToTrajectory, verifyChain, verifyCheckpoint } from '../src/adapters/redstamp.mjs';
+import { scanRedstampAudit } from '../src/scan.mjs';
 import { normalizeEvent } from '../src/schema.mjs';
 import { assess } from '../src/index.mjs';
 
@@ -158,291 +154,88 @@ test('an empty log yields only the declare event', () => {
   assert.equal(events[0].action, 'session.declare');
 });
 
-// ---------------------------------------------------- approve path -------
+// ---------------------------------------------------- checkpoint ---------
 
 const CORPUS = join(dirname(fileURLToPath(import.meta.url)), '..', 'corpus', 'redstamp');
+const SCHEMA = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'schema', 'trajectory.schema.json'), 'utf8'));
 
-test('approve without host observation stays ok — invocation unknown', () => {
-  const { events } = recordsToTrajectory(chain([
-    { tool: 'shell', input: { command: 'curl https://ex.example/x' }, tier: 'red', decision: 'approve', why: ['needs human'] },
-  ]), PROFILE);
-  const call = events.find((e) => e.action === 'proc.spawn');
-  assert.equal(call.outcome, 'ok');
-  assert.equal(call.host_observation?.status, 'unknown');
-  assert.match(call.host_observation.reason, /invocation unknown/);
-});
+const THREE = () => chain([
+  { tool: 'shell', input: { command: 'npm test' }, tier: 'green', decision: 'allow', why: ['ok'] },
+  { tool: 'shell', input: { command: 'curl https://ex.example/x' }, tier: 'red', decision: 'approve', why: ['needs human'] },
+  { tool: 'shell', input: { command: 'npm run build' }, tier: 'green', decision: 'allow', why: ['ok'] },
+]);
 
-test('approve + declined + complete window + not invoked → denied', () => {
-  const recs = chain([
-    {
-      tool: 'shell',
-      input: { command: 'curl https://ex.example/x' },
-      tier: 'red',
-      decision: 'approve',
-      why: ['needs human'],
-      operationId: 'op-1',
-      attemptId: 'a1',
-    },
-  ]);
-  const obs = [{
-    auditHash: recs[0].hash,
-    operationId: 'op-1',
-    attemptId: 'a1',
-    humanResponse: 'declined',
-    targetToolInvoked: false,
-    windowComplete: true,
-  }];
-  const { events } = recordsToTrajectory(recs, PROFILE, { hostObservations: obs });
-  const call = events.find((e) => e.action === 'proc.spawn');
-  assert.equal(call.outcome, 'denied');
-  assert.equal(call.host_observation?.status, 'not_invoked');
-  assert.equal(call.host_observation.windowComplete, true);
-});
-
-test('approve + incomplete window cannot claim non-invocation', () => {
-  const recs = chain([
-    {
-      tool: 'shell',
-      input: { command: 'curl https://ex.example/x' },
-      tier: 'red',
-      decision: 'approve',
-      why: ['needs human'],
-      operationId: 'op-1',
-      attemptId: 'a1',
-    },
-  ]);
-  const obs = [{
-    auditHash: recs[0].hash,
-    operationId: 'op-1',
-    attemptId: 'a1',
-    humanResponse: 'declined',
-    targetToolInvoked: false,
-    windowComplete: false,
-  }];
-  const { events } = recordsToTrajectory(recs, PROFILE, { hostObservations: obs });
-  const call = events.find((e) => e.action === 'proc.spawn');
-  assert.equal(call.outcome, 'ok', 'incomplete window must not become denied');
-  assert.equal(call.host_observation?.status, 'unknown');
-  assert.match(call.host_observation.reason, /incomplete observation window/);
-});
-
-test('approve + accepted + invoked maps executorResult', () => {
-  const recs = chain([
-    {
-      tool: 'shell',
-      input: { command: 'curl https://ex.example/x' },
-      tier: 'red',
-      decision: 'approve',
-      why: ['needs human'],
-      operationId: 'op-1',
-      attemptId: 'a1',
-    },
-  ]);
-  const base = {
-    auditHash: recs[0].hash,
-    operationId: 'op-1',
-    attemptId: 'a1',
-    humanResponse: 'accepted',
-    targetToolInvoked: true,
-    windowComplete: true,
-  };
-  const ok = recordsToTrajectory(recs, PROFILE, {
-    hostObservations: [{ ...base, executorResult: 'ok' }],
-  }).events.find((e) => e.action === 'proc.spawn');
-  assert.equal(ok.outcome, 'ok');
-  assert.equal(ok.host_observation?.status, 'invoked');
-
-  const err = recordsToTrajectory(recs, PROFILE, {
-    hostObservations: [{ ...base, executorResult: 'error' }],
-  }).events.find((e) => e.action === 'proc.spawn');
-  assert.equal(err.outcome, 'error');
-});
-
-test('host observation join mismatch fails closed to unknown', () => {
-  const recs = chain([
-    {
-      tool: 'shell',
-      input: { command: 'curl https://ex.example/x' },
-      tier: 'red',
-      decision: 'approve',
-      why: ['needs human'],
-      operationId: 'op-1',
-      attemptId: 'a1',
-    },
-  ]);
-  const obs = [{
-    auditHash: recs[0].hash,
-    operationId: 'wrong-op',
-    attemptId: 'a1',
-    humanResponse: 'declined',
-    targetToolInvoked: false,
-    windowComplete: true,
-  }];
-  const { events } = recordsToTrajectory(recs, PROFILE, { hostObservations: obs });
-  const call = events.find((e) => e.action === 'proc.spawn');
-  assert.equal(call.outcome, 'ok');
-  assert.equal(call.host_observation?.status, 'unknown');
-  assert.match(call.host_observation.reason, /join mismatch/);
-});
-
-test('conflicting host observations fail closed to unknown (both orders)', () => {
-  const recs = chain([
-    {
-      tool: 'shell',
-      input: { command: 'curl https://ex.example/x' },
-      tier: 'red',
-      decision: 'approve',
-      why: ['needs human'],
-      operationId: 'op-1',
-      attemptId: 'a1',
-    },
-  ]);
-  const declined = {
-    auditHash: recs[0].hash,
-    operationId: 'op-1',
-    attemptId: 'a1',
-    humanResponse: 'declined',
-    targetToolInvoked: false,
-    windowComplete: true,
-  };
-  const accepted = {
-    auditHash: recs[0].hash,
-    operationId: 'op-1',
-    attemptId: 'a1',
-    humanResponse: 'accepted',
-    targetToolInvoked: true,
-    windowComplete: true,
-  };
-
-  for (const order of [[declined, accepted], [accepted, declined]]) {
-    const call = recordsToTrajectory(recs, PROFILE, {
-      hostObservations: order,
-    }).events.find((e) => e.action === 'proc.spawn');
-    assert.equal(call.outcome, 'ok', 'conflict must not authorize denied/ok invocation');
-    assert.equal(call.host_observation?.status, 'unknown');
-    assert.match(call.host_observation.reason, /conflicting host observations/);
+test('an approve record maps to ok and every event stays inside the published schema', () => {
+  const { events } = recordsToTrajectory(THREE(), PROFILE, { checkpoint: { count: 9, head: 'x' } });
+  assert.equal(events.find((e) => e.note?.includes('decision=approve')).outcome, 'ok');
+  const allowed = new Set(Object.keys(SCHEMA.properties));
+  for (const e of events) {
+    for (const k of Object.keys(e)) assert.ok(allowed.has(k), `${e.action} carries ${k}, which the schema does not define`);
   }
 });
 
-test('conflicting executorResult fail closed to unknown (both orders)', () => {
-  const recs = chain([
-    {
-      tool: 'shell',
-      input: { command: 'curl https://ex.example/x' },
-      tier: 'red',
-      decision: 'approve',
-      why: ['needs human'],
-      operationId: 'op-1',
-      attemptId: 'a1',
-    },
-  ]);
-  const base = {
-    auditHash: recs[0].hash,
-    operationId: 'op-1',
-    attemptId: 'a1',
-    humanResponse: 'accepted',
-    targetToolInvoked: true,
-    windowComplete: true,
-  };
-  const okExec = { ...base, executorResult: 'ok' };
-  const errExec = { ...base, executorResult: 'error' };
-
-  for (const order of [[okExec, errExec], [errExec, okExec]]) {
-    const call = recordsToTrajectory(recs, PROFILE, {
-      hostObservations: order,
-    }).events.find((e) => e.action === 'proc.spawn');
-    assert.equal(call.outcome, 'ok', 'executor conflict must not pick ok vs error by order');
-    assert.equal(call.host_observation?.status, 'unknown');
-    assert.match(call.host_observation.reason, /conflicting host observations/);
-    assert.equal(call.host_observation?.executorResult, undefined);
-  }
-});
-
-test('consistent duplicate host observations still authorize declined path', () => {
-  const recs = chain([
-    {
-      tool: 'shell',
-      input: { command: 'curl https://ex.example/x' },
-      tier: 'red',
-      decision: 'approve',
-      why: ['needs human'],
-      operationId: 'op-1',
-      attemptId: 'a1',
-    },
-  ]);
-  const obs = {
-    auditHash: recs[0].hash,
-    operationId: 'op-1',
-    attemptId: 'a1',
-    humanResponse: 'declined',
-    targetToolInvoked: false,
-    windowComplete: true,
-  };
-  const call = recordsToTrajectory(recs, PROFILE, {
-    hostObservations: [obs, { ...obs }],
-  }).events.find((e) => e.action === 'proc.spawn');
-  assert.equal(call.outcome, 'denied');
-  assert.equal(call.host_observation?.status, 'not_invoked');
-});
-
-test('verifyCheckpoint catches truncated tail', () => {
-  const recs = chain([
-    { tool: 'read', input: { path: '/a' }, tier: 'green', decision: 'allow', why: [] },
-    { tool: 'shell', input: { command: 'ls' }, tier: 'green', decision: 'allow', why: [] },
-  ]);
-  assert.deepEqual(verifyCheckpoint(recs, { count: 2, head: recs[1].hash }), {
-    present: true,
-    matches: true,
-  });
-  const truncated = recs.slice(0, 1);
-  const bad = verifyCheckpoint(truncated, { count: 2, head: recs[1].hash });
-  assert.equal(bad.matches, false);
-  assert.match(bad.reason, /count mismatch|head hash/);
-
-  const { events } = recordsToTrajectory(truncated, PROFILE, {
-    checkpoint: { count: 2, head: recs[1].hash },
-  });
+test('a checkpoint catches a truncated tail the chain alone passes', () => {
+  const recs = THREE();
+  const cut = recs.slice(0, 2);
+  assert.equal(verifyChain(cut).intact, true, 'a prefix still verifies');
+  const { events, checkpoint } = recordsToTrajectory(cut, PROFILE, { checkpoint: { count: 3, head: recs[2].hash } });
+  assert.equal(checkpoint.matches, false);
+  assert.match(checkpoint.reason, /^truncated/);
   assert.ok(events.some((e) => e.action === 'audit.checkpoint_mismatch'));
 });
 
-test('corpus approve-path: chain intact, declined approve → denied with host observation', async () => {
-  const checkpoint = JSON.parse(readFileSync(join(CORPUS, 'approve-path.checkpoint.json'), 'utf8'));
-  const hostLines = readFileSync(join(CORPUS, 'approve-path.host-observation.jsonl'), 'utf8')
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter((l) => l && !l.startsWith('#'))
-    .map((l) => JSON.parse(l));
-
-  const { events, chain: c, checkpoint: cp } = await readRedstampAudit(
-    join(CORPUS, 'approve-path.jsonl'),
-    PROFILE,
-    { hostObservations: hostLines, checkpoint },
-  );
-
-  assert.equal(c.chained, true);
-  assert.equal(c.intact, true);
-  assert.equal(cp.matches, true);
-
-  const approve = events.find((e) => e.note?.includes('decision=approve'));
-  assert.ok(approve);
-  assert.equal(approve.outcome, 'denied');
-  assert.equal(approve.host_observation?.status, 'not_invoked');
-  assert.equal(typeof approve.audit_hash, 'string');
-  assert.equal(approve.audit_hash, hostLines[0].auditHash);
-
-  // why[] must not be copied verbatim into the trajectory
-  assert.equal(JSON.stringify(events).includes('needs human approval'), false);
+test('a log that grew past its checkpoint still matches', () => {
+  const recs = THREE();
+  const r = verifyCheckpoint(recs, { count: 2, head: recs[1].hash });
+  assert.deepEqual(r, { present: true, matches: true });
+  const { events } = recordsToTrajectory(recs, PROFILE, { checkpoint: { count: 2, head: recs[1].hash } });
+  assert.ok(!events.some((e) => e.action === 'audit.checkpoint_mismatch'));
 });
 
-test('indexHostObservations groups by auditHash', () => {
-  const map = indexHostObservations([
-    { auditHash: 'aaa', operationId: '1' },
-    { auditHash: 'aaa', operationId: '2' },
-    { auditHash: 'bbb' },
-    { auditHash: '  ' },
-    null,
+test('a rewritten prefix of the same length is a rollback', () => {
+  const other = chain([
+    { tool: 'shell', input: { command: 'ls' }, tier: 'green', decision: 'allow', why: ['ok'] },
+    { tool: 'shell', input: { command: 'pwd' }, tier: 'green', decision: 'allow', why: ['ok'] },
+    { tool: 'shell', input: { command: 'id' }, tier: 'green', decision: 'allow', why: ['ok'] },
   ]);
-  assert.equal(map.get('aaa').length, 2);
-  assert.equal(map.get('bbb').length, 1);
-  assert.equal(map.has('  '), false);
+  const r = verifyCheckpoint(other, { count: 3, head: THREE()[2].hash });
+  assert.equal(r.matches, false);
+  assert.match(r.reason, /^rollback/);
+});
+
+test('unchained lines do not count toward the checkpoint', () => {
+  const recs = THREE();
+  const mixed = [recs[0], { ts: 't', tool: 'shell', tier: 'green', decision: 'allow', why: ['daemon down'] }, recs[1], recs[2]];
+  assert.deepEqual(verifyCheckpoint(mixed, { count: 3, head: recs[2].hash }), { present: true, matches: true });
+});
+
+test('no checkpoint means no check, and a malformed one reports as a mismatch', () => {
+  assert.deepEqual(verifyCheckpoint(THREE(), undefined), { present: false, matches: false });
+  for (const bad of [{}, { count: 0, head: 'x' }, { count: 1.5, head: 'x' }, { count: 1 }]) {
+    const r = verifyCheckpoint(THREE(), bad);
+    assert.equal(r.present, true);
+    assert.equal(r.matches, false);
+    assert.equal(r.reason, 'checkpoint malformed');
+  }
+});
+
+test('corpus approve-path: chain intact, the .chk beside the log is read and matches', async () => {
+  const { events, chain: c, checkpoint } = await readRedstampAudit(join(CORPUS, 'approve-path.jsonl'), PROFILE);
+  assert.equal(c.intact, true);
+  assert.deepEqual(checkpoint, { present: true, matches: true });
+  const calls = events.filter((e) => e.action === 'proc.spawn');
+  assert.equal(calls.length, 3);
+  assert.ok(calls.every((e) => e.outcome === 'ok'), 'approve is ok: the record does not say whether the call ran');
+});
+
+test('scan reaches the checkpoint: a truncated copy of the corpus log is flagged', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'plumbline-redstamp-'));
+  const log = join(dir, 'audit.jsonl');
+  const lines = readFileSync(join(CORPUS, 'approve-path.jsonl'), 'utf8').trimEnd().split('\n');
+  writeFileSync(log, lines.slice(0, -1).join('\n') + '\n');
+  copyFileSync(join(CORPUS, 'approve-path.jsonl.chk'), `${log}.chk`);
+  const { results } = await scanRedstampAudit(log, PROFILE);
+  assert.equal(results[0].chain.intact, true, 'the chain alone passes the cut log');
+  assert.equal(results[0].checkpoint.matches, false);
+  assert.match(results[0].checkpoint.reason, /^truncated/);
 });

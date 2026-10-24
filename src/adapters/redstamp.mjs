@@ -23,6 +23,10 @@
  *     agent editing its own trail). The check is inline sha256; no dependency on
  *     redstamp itself, so plumbline stays zero-dependency.
  *
+ * A chain alone cannot show that records were cut off the end: a valid prefix
+ * still verifies. redstamp's checkpoint (`<log>.chk`, `{ count, head }`) pins
+ * that prefix, and this adapter checks it the way redstamp's verifyAuditFile does.
+ *
  * redstamp audit record shape (chained via AuditLog, or unchained via cc-hook):
  *   { ts, tool, input?, tier, decision, why[], prev?, hash? }
  * where tool is redstamp's normalized name (shell|write|edit|read|grep|list|
@@ -30,6 +34,7 @@
  */
 
 import { createReadStream } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { createInterface } from 'node:readline';
 import { createHash } from 'node:crypto';
 import { entropyOf } from '../schema.mjs';
@@ -142,165 +147,29 @@ export function verifyChain(rawRecords) {
 }
 
 /**
- * Optional host-observation sidecar (not part of the redstamp audit schema).
- *
- * Joins by audit entry `hash` plus optional operationId/attemptId. Integrity of
- * the audit chain does **not** prove the observer is truthful — only that the
- * audit bytes were not mid-chain edited. `targetToolInvoked: false` is trusted
- * only when `windowComplete === true`.
- *
- * @typedef {object} HostObservation
- * @property {string} auditHash
- * @property {string} [operationId]
- * @property {string} [attemptId]
- * @property {'accepted'|'declined'|'unknown'} [humanResponse]
- * @property {boolean} [targetToolInvoked]
- * @property {'ok'|'error'|'unknown'} [executorResult]
- * @property {boolean} [windowComplete]
- */
-
-/**
- * Index host observations by auditHash. Wrong op/attempt pairs are kept but
- * marked mismatched so a caller can fail closed.
- *
- * @param {HostObservation[]} observations
- * @returns {Map<string, HostObservation[]>}
- */
-export function indexHostObservations(observations = []) {
-  const byHash = new Map();
-  for (const obs of observations) {
-    if (!obs || typeof obs.auditHash !== 'string' || !obs.auditHash.trim()) continue;
-    const key = obs.auditHash.trim();
-    const list = byHash.get(key) ?? [];
-    list.push(obs);
-    byHash.set(key, list);
-  }
-  return byHash;
-}
-
-/**
- * Checkpoint shape from redstamp: `{ count, head }` of the audit tip.
- * Chain verify alone cannot catch a truncated tail; compare against this.
+ * Check a redstamp checkpoint `{ count, head }` against the records, as
+ * redstamp's verifyAuditFile does. Only chained records (string `prev` and
+ * `hash`) count; unchained lines, such as those redstamp-hook writes while its
+ * daemon is down, are skipped. The `count`-th chained record must have hash
+ * `head`, so a log that grew past the checkpoint still matches, and one with
+ * fewer chained records than `count` was truncated.
  *
  * @returns {{ present: boolean, matches: boolean, reason?: string }}
  */
 export function verifyCheckpoint(rawRecords, checkpoint) {
-  if (!checkpoint || typeof checkpoint !== 'object') {
-    return { present: false, matches: false, reason: 'checkpoint missing' };
-  }
-  const count = checkpoint.count;
-  const head = checkpoint.head;
-  if (typeof count !== 'number' || typeof head !== 'string') {
+  if (checkpoint == null) return { present: false, matches: false };
+  const { count, head } = checkpoint;
+  if (!Number.isInteger(count) || count < 1 || typeof head !== 'string') {
     return { present: true, matches: false, reason: 'checkpoint malformed' };
   }
-  if (rawRecords.length !== count) {
-    return {
-      present: true,
-      matches: false,
-      reason: `count mismatch: records=${rawRecords.length} checkpoint=${count}`,
-    };
+  const chained = rawRecords.filter((r) => typeof r.prev === 'string' && typeof r.hash === 'string');
+  if (chained.length < count) {
+    return { present: true, matches: false, reason: `truncated: ${chained.length} chained records, checkpoint has ${count}` };
   }
-  const last = rawRecords[rawRecords.length - 1];
-  if (!last || last.hash !== head) {
-    return { present: true, matches: false, reason: 'head hash mismatch (possible truncated tail)' };
+  if (chained[count - 1].hash !== head) {
+    return { present: true, matches: false, reason: `rollback: chained record ${count} does not have the checkpoint head` };
   }
   return { present: true, matches: true };
-}
-
-/**
- * Derive plumbline outcome for one redstamp record, optionally refined by a
- * joined host observation. Acceptance-dependent fields are clearly optional.
- *
- * - block → denied (unchanged)
- * - allow → ok (unchanged)
- * - approve without complete observation → ok + note that invocation is unknown
- * - approve + declined + complete window + not invoked → denied
- * - approve + accepted + invoked → ok (executorResult may still be error)
- */
-function outcomeFor(rec, observation) {
-  if (rec.decision === 'block') return { outcome: 'denied', host: null };
-
-  if (rec.decision !== 'approve') {
-    return { outcome: 'ok', host: null };
-  }
-
-  if (!observation) {
-    return {
-      outcome: 'ok',
-      host: {
-        status: 'unknown',
-        reason: 'approve without host observation — invocation unknown',
-      },
-    };
-  }
-
-  if (observation._join === 'mismatch') {
-    return {
-      outcome: 'ok',
-      host: {
-        status: 'unknown',
-        reason: 'host observation join mismatch (operationId/attemptId)',
-      },
-    };
-  }
-
-  if (observation._join === 'conflict') {
-    return {
-      outcome: 'ok',
-      host: {
-        status: 'unknown',
-        reason: 'conflicting host observations for join key — invocation unknown',
-        matchCount: observation._matchCount,
-      },
-    };
-  }
-
-  if (observation.windowComplete !== true) {
-    return {
-      outcome: 'ok',
-      host: {
-        status: 'unknown',
-        reason: 'incomplete observation window — cannot claim non-invocation',
-        humanResponse: observation.humanResponse ?? 'unknown',
-      },
-    };
-  }
-
-  if (observation.humanResponse === 'declined' && observation.targetToolInvoked === false) {
-    return {
-      outcome: 'denied',
-      host: {
-        status: 'not_invoked',
-        humanResponse: 'declined',
-        targetToolInvoked: false,
-        windowComplete: true,
-      },
-    };
-  }
-
-  if (observation.humanResponse === 'accepted' && observation.targetToolInvoked === true) {
-    return {
-      outcome: observation.executorResult === 'error' ? 'error' : 'ok',
-      host: {
-        status: 'invoked',
-        humanResponse: 'accepted',
-        targetToolInvoked: true,
-        executorResult: observation.executorResult ?? 'unknown',
-        windowComplete: true,
-      },
-    };
-  }
-
-  return {
-    outcome: 'ok',
-    host: {
-      status: 'unknown',
-      reason: 'approve observation present but not authoritative for non-invocation',
-      humanResponse: observation.humanResponse ?? 'unknown',
-      targetToolInvoked: observation.targetToolInvoked,
-      windowComplete: observation.windowComplete === true,
-    },
-  };
 }
 
 /**
@@ -308,17 +177,12 @@ function outcomeFor(rec, observation) {
  *
  * @param {object[]} records  parsed redstamp audit entries, in log order
  * @param {object} profile    envelope profile (task/capabilities/egress/budget)
- * @param {{session?: string, hostObservations?: HostObservation[], checkpoint?: {count:number, head:string}}} [opts]
+ * @param {{session?: string, checkpoint?: {count: number, head: string}}} [opts]
  * @returns {{events: object[], chain: object, checkpoint: object}}
  */
-export function recordsToTrajectory(records, profile, {
-  session = 'redstamp-audit',
-  hostObservations,
-  checkpoint,
-} = {}) {
+export function recordsToTrajectory(records, profile, { session = 'redstamp-audit', checkpoint } = {}) {
   const chain = verifyChain(records);
   const checkpointResult = verifyCheckpoint(records, checkpoint);
-  const obsByHash = indexHostObservations(hostObservations);
   const events = [];
   let seq = 0;
 
@@ -376,67 +240,9 @@ export function recordsToTrajectory(records, profile, {
     const action = ACTION_MAP[tool] ?? 'tool.call';
     const input = rec.input ?? {};
 
-    // Optional host observation — join on audit hash (+ op/attempt when supplied).
-    // Collect ALL matching observations; conflicting invocation/response → unknown
-    // independent of sidecar order. why[] is tainted; never copy it verbatim.
-    let observation = null;
-    if (typeof rec.hash === 'string') {
-      const candidates = obsByHash.get(rec.hash) ?? [];
-      const matches = candidates.filter((o) => {
-        const opOk = o.operationId === undefined || o.operationId === rec.operationId;
-        const attOk = o.attemptId === undefined || o.attemptId === rec.attemptId;
-        return opOk && attOk;
-      });
-      if (matches.length === 1) {
-        observation = matches[0];
-      } else if (matches.length > 1) {
-        const responses = new Set(matches.map((o) => o.humanResponse ?? 'unknown'));
-        const invoked = new Set(
-          matches.map((o) =>
-            o.targetToolInvoked === true
-              ? 'invoked'
-              : o.targetToolInvoked === false
-                ? 'not_invoked'
-                : 'unknown',
-          ),
-        );
-        const windows = new Set(
-          matches.map((o) => (o.windowComplete === true ? 'complete' : 'incomplete')),
-        );
-        // executorResult drives outcomeFor on the accepted/invoked path;
-        // normalize missing to 'unknown' so order cannot pick ok vs error.
-        const executors = new Set(
-          matches.map((o) => o.executorResult ?? 'unknown'),
-        );
-        if (
-          responses.size > 1 ||
-          invoked.size > 1 ||
-          windows.size > 1 ||
-          executors.size > 1
-        ) {
-          observation = {
-            auditHash: rec.hash,
-            windowComplete: false,
-            humanResponse: 'unknown',
-            _join: 'conflict',
-            _matchCount: matches.length,
-          };
-        } else {
-          // Consistent duplicates — first is fine (order-independent evidence).
-          observation = matches[0];
-        }
-      } else if (candidates.length > 0) {
-        // Wrong join: observation exists for hash but op/attempt mismatch → unknown.
-        observation = {
-          auditHash: rec.hash,
-          windowComplete: false,
-          humanResponse: 'unknown',
-          _join: 'mismatch',
-        };
-      }
-    }
-
-    const { outcome, host } = outcomeFor(rec, observation);
+    // redstamp block -> plumbline denial. This is the mapping that makes ratchet
+    // reachable: the guard's refusals are the evidence an agent later evaded.
+    const outcome = rec.decision === 'block' ? 'denied' : 'ok';
 
     const fresh = (CAPABILITY_MAP[tool] ?? []).filter((c) => !held.has(c));
     for (const c of fresh) held.add(c);
@@ -452,8 +258,6 @@ export function recordsToTrajectory(records, profile, {
       outcome,
       note: `redstamp: ${tool} tier=${rec.tier ?? '?'} decision=${rec.decision ?? '?'}`,
     };
-    if (host) event.host_observation = host;
-    if (typeof rec.hash === 'string') event.audit_hash = rec.hash;
     if (fresh.length > 0) event.capability_grant = fresh;
 
     // Secret movement, hashed so a value seen twice links produce->consume.
@@ -479,8 +283,20 @@ export function recordsToTrajectory(records, profile, {
   return { events, chain, checkpoint: checkpointResult };
 }
 
+/**
+ * Read the checkpoint redstamp writes beside a log (`<log>.chk`). Undefined
+ * when there is none; an unreadable one is returned as `{}` so it reports as
+ * malformed rather than silently switching the check off.
+ */
+export async function readCheckpoint(file) {
+  let text;
+  try { text = await readFile(`${file}.chk`, 'utf8'); } catch { return undefined; }
+  try { return JSON.parse(text) ?? {}; } catch { return {}; }
+}
+
 /** Read a redstamp audit JSONL file into a trajectory. */
 export async function readRedstampAudit(file, profile, opts = {}) {
+  if (opts.checkpoint === undefined) opts = { ...opts, checkpoint: await readCheckpoint(file) };
   const rl = createInterface({ input: createReadStream(file, { encoding: 'utf8' }), crlfDelay: Infinity });
   const records = [];
   for await (const line of rl) {

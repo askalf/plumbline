@@ -190,7 +190,7 @@ export async function scanForgeDump(file, profile, { limit = Infinity, threshold
  * consistency with the other adapters.
  */
 export async function scanRedstampAudit(file, profile, { thresholds } = {}) {
-  const { events, chain } = await readRedstampAudit(file, profile);
+  const { events, chain, checkpoint } = await readRedstampAudit(file, profile);
   if (events.length <= 1) {
     return { results: [], skipped: [{ path: file, reason: 'no audit records' }], scanned: 0, profile: profile.name ?? 'custom' };
   }
@@ -203,6 +203,7 @@ export async function scanRedstampAudit(file, profile, { thresholds } = {}) {
       task: profile.task ?? null,
       cwd: null,
       chain,
+      checkpoint,
       tool_calls: events.length - 1,
       tools: {},
       level: report.level,
