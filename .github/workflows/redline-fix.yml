@@ -34,9 +34,9 @@ permissions:
 jobs:
   fix:
     # Pinned so a change to the fix workflow reaches this repo only through a reviewed bump here.
-    uses: askalf/ci/.github/workflows/redline-fix-run.yml@b4c6827c0842ecaa31795fbf83c591d4c88dc205 # main 2026-10-18, askalf/ci#65
+    uses: askalf/ci/.github/workflows/redline-fix-run.yml@cfe64b8b39e96b7f8d87f69df210fda6349d3198 # main 2026-10-23, askalf/ci#118
     with:
-      redline-ref: b4c6827c0842ecaa31795fbf83c591d4c88dc205
+      redline-ref: cfe64b8b39e96b7f8d87f69df210fda6349d3198
       # plumbline-fix is this repository's fix-lane runner: its own non-root account, one job
       # per registration. Only this workflow targets that label.
       runner-label: plumbline-fix
