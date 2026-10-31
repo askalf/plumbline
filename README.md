@@ -10,6 +10,7 @@
   <a href="https://www.npmjs.com/package/@askalf/plumbline"><img src="https://img.shields.io/npm/v/@askalf/plumbline?color=c9a227&label=npm&logo=npm" alt="npm version"></a>
   <a href="https://github.com/askalf/plumbline/releases"><img src="https://img.shields.io/github/v/release/askalf/plumbline?color=c9a227&label=release&logo=github" alt="Latest release"></a>
   <a href="https://github.com/askalf/plumbline/actions/workflows/ci.yml"><img src="https://github.com/askalf/plumbline/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://pitlane.askalf.org/stats.json"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fpitlane.askalf.org%2Fbadge.json" alt="CI on pitlane"></a>
   <a href="https://github.com/askalf/plumbline/actions/workflows/codeql.yml"><img src="https://github.com/askalf/plumbline/actions/workflows/codeql.yml/badge.svg" alt="CodeQL"></a>
   <a href="https://scorecard.dev/viewer/?uri=github.com/askalf/plumbline"><img src="https://api.scorecard.dev/projects/github.com/askalf/plumbline/badge" alt="OpenSSF Scorecard"></a>
   <!-- OpenSSF Best Practices: uncomment once enrolled at https://www.bestpractices.dev and replace PROJECT_ID:
