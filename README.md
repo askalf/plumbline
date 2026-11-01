@@ -13,6 +13,7 @@
   <a href="https://pitlane.askalf.org/"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fpitlane.askalf.org%2Fbadge.json" alt="CI on pitlane"></a>
   <a href="https://github.com/askalf/plumbline/actions/workflows/codeql.yml"><img src="https://github.com/askalf/plumbline/actions/workflows/codeql.yml/badge.svg" alt="CodeQL"></a>
   <a href="https://scorecard.dev/viewer/?uri=github.com/askalf/plumbline"><img src="https://api.scorecard.dev/projects/github.com/askalf/plumbline/badge" alt="OpenSSF Scorecard"></a>
+  <a href="https://www.bestpractices.dev/projects/16167"><img src="https://www.bestpractices.dev/projects/16167/badge" alt="OpenSSF Best Practices"></a>
   <!-- OpenSSF Best Practices: uncomment once enrolled at https://www.bestpractices.dev and replace PROJECT_ID:
   <a href="https://www.bestpractices.dev/projects/PROJECT_ID"><img src="https://www.bestpractices.dev/projects/PROJECT_ID/badge" alt="OpenSSF Best Practices"></a>
   -->
