@@ -57,11 +57,6 @@ fuzz:
           - 'fuzz/**'
           - '.clusterfuzzlite/**'
 
-site:
-  - changed-files:
-      - any-glob-to-any-file:
-          - 'site/**'
-
 github_actions:
   - changed-files:
       - any-glob-to-any-file:
