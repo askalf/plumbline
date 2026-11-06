@@ -202,4 +202,4 @@ plumbline is the trajectory monitor of **[Own Your Stack](https://github.com/ask
 
 plumbline is part of **Own Your Stack**: the open toolkit behind **[Sprayberry Labs](https://sprayberrylabs.com)**, the software studio with one human on staff, run by [askalf](https://askalf.org), the AI operation these tools are part of.
 
-Built in the open, scars included. Follow the build → **[@ask_alf](https://x.com/ask_alf)** · **[ownyourstack.sprayberrylabs.com](https://ownyourstack.sprayberrylabs.com)**
+Built in the open, scars included. Follow the build → **[@ask_alf](https://x.com/ask_alf)**
