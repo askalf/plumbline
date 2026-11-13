@@ -30,19 +30,72 @@ const STRUCTURED_READERS = {
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
-export function loadProfile(nameOrPath) {
+/** A bundled profile name, else a path resolved against `baseDir`. */
+function readProfile(nameOrPath, baseDir) {
   const candidates = [
     resolve(HERE, '..', 'profiles', `${nameOrPath}.json`),
-    resolve(nameOrPath),
+    resolve(baseDir, nameOrPath),
   ];
   for (const candidate of candidates) {
     try {
-      return JSON.parse(readFileSync(candidate, 'utf8'));
+      return { profile: JSON.parse(readFileSync(candidate, 'utf8')), file: candidate };
     } catch (err) {
       if (err.code !== 'ENOENT') throw err;
     }
   }
   throw new Error(`no such profile: ${nameOrPath}`);
+}
+
+const strings = (list) => (Array.isArray(list) ? list.filter((x) => typeof x === 'string') : []);
+const union = (a, b) => [...new Set([...strings(a), ...strings(b)])];
+const object = (x) => (x && typeof x === 'object' && !Array.isArray(x) ? x : {});
+
+/** A profile that extends another: lists are added to the base's, never cut from it. */
+function mergeProfile(base, own) {
+  const merged = { ...base, ...own };
+  delete merged.extends;
+  merged.name = typeof own.name === 'string' ? own.name : `${base.name ?? 'custom'} (extended)`;
+  merged.capabilities = union(base.capabilities, own.capabilities);
+  merged.egress = {
+    ...object(base.egress),
+    ...object(own.egress),
+    allow: union(object(base.egress).allow, object(own.egress).allow),
+  };
+  merged.budget = { ...object(base.budget), ...object(own.budget) };
+  return merged;
+}
+
+const MAX_EXTENDS = 8;
+
+/**
+ * Load an envelope profile by bundled name or by path.
+ *
+ * A profile may name another in `extends` and add to it: `capabilities` and
+ * `egress.allow` are the base's plus its own, `budget` and `egress.mode` take
+ * its own values over the base's. That is how a machine's own hosts are
+ * declared (`exec:remote:<host>`) without copying a bundled profile and
+ * falling behind it. A relative `extends` path is read from the extending
+ * file's directory. A cycle or a chain past MAX_EXTENDS is an error, not a
+ * partial profile: a monitor scoring against half an envelope would report
+ * drift that is not there, or miss drift that is.
+ */
+export function loadProfile(nameOrPath) {
+  const chain = [];
+  const seen = new Set();
+  let next = nameOrPath;
+  let baseDir = process.cwd();
+  while (next !== undefined) {
+    if (typeof next !== 'string' || next === '') throw new Error(`profile extends must be a profile name or path, got ${JSON.stringify(next)}`);
+    const { profile, file } = readProfile(next, baseDir);
+    if (seen.has(file)) throw new Error(`profile extends cycle at ${next}`);
+    if (chain.length >= MAX_EXTENDS) throw new Error(`profile extends chain is longer than ${MAX_EXTENDS}`);
+    if (!profile || typeof profile !== 'object' || Array.isArray(profile)) throw new Error(`profile ${next} is not a JSON object`);
+    seen.add(file);
+    chain.push(profile);
+    next = profile.extends;
+    baseDir = dirname(file);
+  }
+  return chain.reduceRight((base, own) => mergeProfile(base, own));
 }
 
 export function listProfiles() {

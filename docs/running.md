@@ -24,6 +24,24 @@ plumbline replay corpus/evasion-residual-floor.jsonl --report=escape.html
 
 It carries two things a screenshot of a terminal does not. **The reachability caveat rides on the artifact**, in the same type size as the verdict — an exported "100% clean" that leaves behind the list of detectors that could not fire is worse than no export, because it looks authoritative. And **trajectory text is escaped, never interpolated**: paths, hosts and task strings are written by the monitored agent, and a renderer that trusted them would hand that agent a script tag in its reviewer's browser. Both are regression tests, not intentions. The file contains your own hosts, paths and task text; plumbline says so when it writes one — read it before you share it.
 
+**With your own hosts declared.** The shipped profiles know nothing about your servers, so on a machine that works over `ssh` or `scp` every session reaching one reads as off-envelope: `exec:remote:<host>` and `net:transfer:<host>` are `staircase` rungs. Declare them in a profile that extends a shipped one:
+
+```json
+{
+  "extends": "dev-workstation",
+  "name": "dev-workstation + build hosts",
+  "capabilities": ["exec:remote:build-01", "net:transfer:build-01"],
+  "egress": { "allow": ["artifacts.example.internal"] }
+}
+```
+
+```bash
+plumbline scan ~/.claude/projects --profile=./my-profile.json
+plumbline install-hook --profile=/home/me/.config/plumbline/my-profile.json   # absolute: the hook runs from each project's directory
+```
+
+`capabilities` and `egress.allow` are added to the base's and never cut from it; `budget` keys and `egress.mode` take your values over the base's. `extends` takes a shipped profile's name or a path, read from the extending file's directory; a cycle, a missing base or a chain past eight profiles is an error, not a partial envelope. Name each host: a wildcard such as `exec:remote:*` grants every host and `staircase` can no longer see one it should not reach. To narrow a shipped profile, write the whole profile instead.
+
 **In CI.** `plumbline scan ... --exit-code` returns 1 on `confirm` or `halt`.
 
 **As a library.**
@@ -50,7 +68,7 @@ plumbline scan audit.jsonl      --adapter=redstamp  --profile=redstamp-guarded  
 
 ```
 plumbline replay <file.jsonl> [--semantic] [--only=a,b] [--json] [--report[=FILE]]
-plumbline scan   <path> [--adapter=NAME] [--profile=NAME] [--limit=N] [--exit-code] [--report[=FILE]]
+plumbline scan   <path> [--adapter=NAME] [--profile=NAME|FILE] [--limit=N] [--exit-code] [--report[=FILE]]
 plumbline hook                       # score the session a hook names on stdin
 plumbline install-hook               # wire that into ~/.claude/settings.json
 plumbline validate <file.jsonl>      # schema-check a trajectory
