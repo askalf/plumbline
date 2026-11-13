@@ -12,6 +12,8 @@ notes.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-13
+
 ### Added
 
 - **A profile can extend a shipped one.** `"extends": "dev-workstation"` (or
