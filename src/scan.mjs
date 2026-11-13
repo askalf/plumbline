@@ -7,7 +7,7 @@
  */
 
 import { readdirSync, statSync, readFileSync, realpathSync } from 'node:fs';
-import { join, extname, dirname, resolve } from 'node:path';
+import { join, extname, dirname, resolve, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { normalizeEvent } from './schema.mjs';
 import { assess } from './index.mjs';
@@ -30,12 +30,16 @@ const STRUCTURED_READERS = {
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
-/** A bundled profile name, else a path resolved against `baseDir`. */
+/**
+ * An explicit path (absolute, or starting with `./` or `../`) is read only
+ * from `baseDir`, never from the bundled profiles; a bare name is a bundled
+ * profile first, else a path resolved against `baseDir`.
+ */
 function readProfile(nameOrPath, baseDir) {
-  const candidates = [
-    resolve(HERE, '..', 'profiles', `${nameOrPath}.json`),
-    resolve(baseDir, nameOrPath),
-  ];
+  const explicitPath = isAbsolute(nameOrPath) || /^\.\.?[\\/]/.test(nameOrPath);
+  const candidates = explicitPath
+    ? [resolve(baseDir, nameOrPath)]
+    : [resolve(HERE, '..', 'profiles', `${nameOrPath}.json`), resolve(baseDir, nameOrPath)];
   for (const candidate of candidates) {
     try {
       return { profile: JSON.parse(readFileSync(candidate, 'utf8')), file: candidate };

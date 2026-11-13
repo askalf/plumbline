@@ -130,3 +130,14 @@ test('malformed lists and objects in a child are ignored, not spread', () => {
     assert.deepEqual(p.budget, base.budget ?? {});
   });
 });
+
+test('an explicit relative extends reads the sibling file even when its name matches a shipped profile', () => {
+  withDir({
+    'dev-workstation': { name: 'local base', capabilities: ['local-only'] },
+    'child.json': { extends: './dev-workstation', capabilities: ['c'] },
+  }, (dir) => {
+    const p = loadProfile(join(dir, 'child.json'));
+    assert.deepEqual(p.capabilities, ['local-only', 'c']);
+    assert.equal(p.name, 'local base (extended)');
+  });
+});
