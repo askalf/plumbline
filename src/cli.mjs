@@ -37,7 +37,9 @@ Options:
   --json            Emit the full assessment as JSON
   --evidence        Print the evidence bundle for every signal
   --only=a,b        Run only the named detectors
-  --profile=NAME    Envelope profile for scan (${listProfiles().join(', ')})
+  --profile=NAME    Envelope profile for scan (${listProfiles().join(', ')}),
+                    or a profile file; one with "extends" adds your own hosts
+                    to a shipped profile (docs/running.md)
   --adapter=NAME    claude-code (default) | forge | redstamp |
                     openai | anthropic | langchain | otel
   --semantic        Also run the model-backed semantic detector (replay only).

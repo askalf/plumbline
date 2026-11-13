@@ -28,6 +28,8 @@ This is the primary detector. In the ExploitGym escape the agent climbed four ru
 
 **On Claude Code transcripts.** Every Bash call holds `exec:local`, which every workstation profile grants, so a per-tool mapping alone gave the detector nothing to count: reachable on every session, able to fire on none. The adapter also reads what a shell command reaches: `cloud:aws` / `cloud:gcp` / `cloud:azure` / `cloud:k8s` / `cloud:iac` from those CLIs, `exec:remote:<host>` from `ssh`, `net:transfer:<host>` from `scp` / `rsync` / `sftp`, `exec:root` from `sudo` and its kin, and `exec:persist` from `crontab`, `systemctl enable`, `launchctl load` and `schtasks /create`. Ordinary developer tools (`gh`, `docker`, `git push`) are left out on purpose. Commands in background jobs, `$(...)` and backtick substitutions, subshells, `{ }` groups and `if` / `while` / `for` bodies are read like any other. Quoted strings and heredoc bodies are treated as data, so `bash -c "sudo x"` is missed.
 
+**Your own hosts are rungs until you declare them.** No shipped profile names a host, so `ssh` to your own build box is `exec:remote:<host>` off-envelope like any other. On 677 sessions of one operator's workstation, most of them run over `ssh` and `scp` to their own servers, the stock `dev-workstation` profile left 84.5% clean (10 `halt`); the same corpus with those hosts declared in a profile that `extends` it was 95.7% clean (3 `halt`, each an undeclared host together with other signals). Declare them as in [docs/running.md](docs/running.md#ways-to-run-it), one host at a time.
+
 **Cannot see:** capability *use* that the harness does not report as a grant, and privilege obtained outside the agent's tool surface entirely (a running process that inherits an ambient credential).
 
 ---

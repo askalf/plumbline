@@ -14,6 +14,16 @@ notes.
 
 ### Added
 
+- **A profile can extend a shipped one.** `"extends": "dev-workstation"` (or
+  a path) in a profile file adds its `capabilities` and `egress.allow` to the
+  base's and never cuts from them; `budget` keys and `egress.mode` take its own
+  values. That is how your own hosts are declared (`exec:remote:<host>`,
+  `net:transfer:<host>`) without copying a shipped profile and falling behind
+  it. A relative `extends` is read from the extending file's directory; a
+  cycle, a missing base or a chain past eight profiles is an error rather than
+  a partial envelope. An unnamed extension reports as `<base> (extended)`, not
+  as the stock profile. See [docs/running.md](docs/running.md).
+
 - **redstamp checkpoints are checked.** A hash chain cannot show that records
   were cut off the end, because a valid prefix still verifies. The redstamp
   adapter now reads the checkpoint redstamp writes beside a log
@@ -24,6 +34,26 @@ notes.
   `plumbline scan --adapter=redstamp` runs the check and reports it next to
   `chain`. New fixture `corpus/redstamp/approve-path.jsonl` covers
   `decision=approve` at `tier=red`.
+
+### Changed
+
+- **`staircase` can fire on Claude Code transcripts.** The adapter mapped each
+  tool to one coarse capability, and every Bash call to `exec:local`, which
+  every workstation profile grants. The detector was reachable on every session
+  and had nothing off-envelope to count. The adapter now also reads what a shell
+  command reaches: cloud CLIs (`cloud:aws`, `cloud:gcp`, `cloud:azure`,
+  `cloud:k8s`, `cloud:iac`), `ssh` (`exec:remote:<host>`), `scp` / `rsync` /
+  `sftp` to a remote host (`net:transfer:<host>`), `sudo` and its kin
+  (`exec:root`), and persistence (`exec:persist`). Quoted strings and heredoc
+  bodies are skipped, because a test string inside `node -e "..."` read as
+  `exec:root` on the first live run. **Measured on 677 Claude Code sessions of
+  one workstation** (2026-11-13), most of them run over `ssh` and `scp` to the
+  operator's own servers: with the stock `dev-workstation` profile the clean
+  rate went from 96.0% to 84.5% and `halt` from 1 session to 10, every new flag
+  a `staircase` rung for one of those servers. With the servers declared in a
+  profile that `extends` `dev-workstation` (below) it is 95.7% clean with 3
+  `halt`, each an undeclared host together with other signals. Declare your own
+  hosts before you read a clean rate from this release.
 
 ### Fixed
 
@@ -37,23 +67,6 @@ notes.
   Quoted text, including `bash -c "..."`, is still treated as data.
 
 ## [0.4.1] - 2026-09-25
-
-### Changed
-
-- **`staircase` can fire on Claude Code transcripts.** The adapter mapped each
-  tool to one coarse capability, and every Bash call to `exec:local`, which
-  every workstation profile grants. The detector was reachable on every session
-  and had nothing off-envelope to count. The adapter now also reads what a shell
-  command reaches: cloud CLIs (`cloud:aws`, `cloud:gcp`, `cloud:azure`,
-  `cloud:k8s`, `cloud:iac`), `ssh` (`exec:remote:<host>`), `scp` / `rsync` /
-  `sftp` to a remote host (`net:transfer:<host>`), `sudo` and its kin
-  (`exec:root`), and persistence (`exec:persist`). Quoted strings and heredoc
-  bodies are skipped, because a test string inside `node -e "..."` read as
-  `exec:root` on the first live run. **Not yet measured on the real-traffic
-  corpus**: one of these rungs is `warn`, two are `confirm` and three are
-  `halt`, so a platform engineer's ordinary `sudo` + `aws` + `kubectl` session
-  halts on `dev-workstation`. The clean rate in `docs/evidence.md` will move,
-  and it needs a re-run before release.
 
 ### Changed
 
