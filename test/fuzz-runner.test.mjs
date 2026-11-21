@@ -27,9 +27,13 @@ const log = process.env.STUB_LOG;
 appendFileSync(log, 'start ' + name + '\\n');
 process.stdout.write(name + ' first\\n');
 setTimeout(() => {
-  process.stdout.write(name + ' last\\n');
-  appendFileSync(log, 'end ' + name + '\\n');
-  process.exit(kind === 'ok' ? 0 : Number(kind.slice(4)));
+  // A target whose label is big prints 4 MB first, so its log is still draining when it ends.
+  if (name.startsWith('big_')) process.stdout.write(('x'.repeat(1023) + '\\n').repeat(4096));
+  // Exit once the last line is written: exit() can cut off output still draining into a pipe.
+  process.stdout.write(name + ' last\\n', () => {
+    appendFileSync(log, 'end ' + name + '\\n');
+    process.exit(kind === 'ok' ? 0 : Number(kind.slice(4)));
+  });
 }, Number(ms));
 `;
 
@@ -48,7 +52,7 @@ function run(targets, jobs) {
   const env = { ...process.env, STUB_LOG: log, FUZZ_SECONDS: '1' };
   for (const k of ['FUZZ_JOBS', 'FUZZ_CORPUS_DIR', 'FUZZ_ARTIFACT_DIR']) delete env[k];
   if (jobs !== undefined) env.FUZZ_JOBS = jobs;
-  const r = spawnSync(process.execPath, [join('fuzz', 'run.mjs')], { cwd: root, env, encoding: 'utf8' });
+  const r = spawnSync(process.execPath, [join('fuzz', 'run.mjs')], { cwd: root, env, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
   const events = readFileSync(log, 'utf8').split('\n').filter(Boolean).map((l) => l.split(' '));
   let live = 0;
   let peak = 0;
@@ -136,4 +140,12 @@ test('every failure is reported and the run exits with the first one\'s status',
   assert.match(r.stderr, /b_fail5_50: jazzer exited with 5/);
   assert.match(r.stderr, /a_fail3_800: jazzer exited with 3/);
   assert.ok(r.stderr.indexOf('b_fail5_50') < r.stderr.indexOf('a_fail3_800'));
+});
+
+test('a failing target that ends last with a large log has all of it printed', () => {
+  const r = run(['a_ok_50', 'big_fail3_300'], '2');
+  assert.equal(r.status, 3, r.stderr);
+  assert.ok(r.stdout.length > 4 * 1024 * 1024, `stdout is ${r.stdout.length} bytes`);
+  assert.ok(r.stdout.trimEnd().endsWith('big_fail3_300 last'), JSON.stringify(r.stdout.slice(-80)));
+  assert.match(r.stderr, /big_fail3_300: jazzer exited with 3/);
 });
